@@ -997,8 +997,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float2 uvOriginal = uv;
 
 #	if defined(LANDSCAPE)
-	float mipLevel[6]= { 0, 0, 0, 0, 0, 0 };
-	float sh0[6]= { 0, 0, 0, 0, 0, 0 };
+	float mipLevel[6] = { 0, 0, 0, 0, 0, 0 };
+	float sh0[6] = { 0, 0, 0, 0, 0, 0 };
 	float pixelOffset[6] = { 0, 0, 0, 0, 0, 0 };
 	float3 landColors[6] = { float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0) };
 	float3 landNormals[6] = { float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0) };
@@ -1130,7 +1130,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(WORLD_MAP)
 		normalSample.xyz = GetWorldMapNormal(input, normalSample.xyz, rawColorSample.xyz);  // TODO might require separate rawColorSample instead
-#	endif                                                                               // WORLD_MAP
+#	endif                                                                                  // WORLD_MAP
 
 #	if defined(LANDSCAPE)
 		landColors[0] = colorSample.rgb;
@@ -1274,23 +1274,23 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 
 	baseColor = float4(0, 0, 0, 1);
-	normal = float4(0,0,1,0);
+	normal = float4(0, 0, 1, 0);
 #		if defined(CPM_AVAILABLE)
 	if (perPassParallax[0].EnableTerrainParallax) {
-		float blendFactor = saturate(perPassParallax[0].TerrainParallaxBlending - sqrt(viewPosition.z/perPassParallax[0].MaxDistance));
+		float blendFactor = saturate(perPassParallax[0].TerrainParallaxBlending - sqrt(viewPosition.z / perPassParallax[0].MaxDistance));
 		float total = 0;
 		int mi = 0;
 		for (int i = 0; i < 6; i++) {
-			if (weights[i]*pixelOffset[i] > weights[mi]*pixelOffset[mi])
+			if (weights[i] * pixelOffset[i] > weights[mi] * pixelOffset[mi])
 				mi = i;
-			total += weights[i]*(pixelOffset[i]+1);
+			total += weights[i] * (pixelOffset[i] + 1);
 		}
-		baseColor.rgb = landColors[mi]*blendFactor*pow(landGloss[mi], 0.5);
-		normal.xyz = landNormals[mi]*blendFactor;
-		glossiness = landGloss[mi]*blendFactor;
+		baseColor.rgb = landColors[mi] * blendFactor * pow(landGloss[mi], 0.5);
+		normal.xyz = landNormals[mi] * blendFactor;
+		glossiness = landGloss[mi] * blendFactor;
 		for (int i = 0; i < 6; ++i) {
-			float w = weights[i]*(pixelOffset[i]+1)*(1.0-blendFactor)/total;
-			float w2 = weights[i]*(pixelOffset[i]+1)*(1.0-blendFactor*pow(landGloss[mi], 0.5))/total;
+			float w = weights[i] * (pixelOffset[i] + 1) * (1.0 - blendFactor) / total;
+			float w2 = weights[i] * (pixelOffset[i] + 1) * (1.0 - blendFactor * pow(landGloss[mi], 0.5)) / total;
 			baseColor.rgb += landColors[i] * w2;
 			normal.xyz += landNormals[i] * w;
 			glossiness += landGloss[i] * w;
