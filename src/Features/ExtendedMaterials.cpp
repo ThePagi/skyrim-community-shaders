@@ -8,6 +8,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	EnableTerrain,
 	EnableComplexMaterial,
 	EnableHighQuality,
+	TerrainParallaxBlending,
 	MaxDistance,
 	CRPMRange,
 	BlendRange,
@@ -67,6 +68,10 @@ void ExtendedMaterials::DrawSettings()
 				"Doubles the sample count and approximates the intersection point using Parallax Occlusion Mapping. "
 				"Significantly improves the quality and removes aliasing. "
 				"TAA or the Skyrim Upscaler is recommended when using this option due to CRPM artifacts. ");
+		}
+		ImGui::SliderFloat("LandscapeParallaxBlending", &settings.TerrainParallaxBlending, 0.0f, 1.0f);
+		if (auto _tt = Util::HoverTooltipWrapper()) {
+			ImGui::Text("How much parallax is used when blending landscape textures. In vanilla this would be 0.");
 		}
 
 		ImGui::Spacing();

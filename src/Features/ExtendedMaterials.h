@@ -25,6 +25,7 @@ struct ExtendedMaterials : Feature
 		uint32_t EnableParallax = 1;
 		uint32_t EnableTerrain = 0;
 		uint32_t EnableHighQuality = 0;
+		float TerrainParallaxBlending = 1.0f;
 
 		uint32_t MaxDistance = 4096;
 		float CRPMRange = 0.5f;
