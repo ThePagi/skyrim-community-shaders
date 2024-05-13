@@ -1274,27 +1274,30 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 
 	baseColor = float4(0, 0, 0, 1);
-	normal = float4(0,0,1,0);
 #		if defined(CPM_AVAILABLE)
 	if (perPassParallax[0].EnableTerrainParallax) {
 		float blendFactor = saturate(perPassParallax[0].TerrainParallaxBlending - sqrt(viewPosition.z/perPassParallax[0].MaxDistance));
 		float total = 0;
 		int mi = 0;
+		float maxOffset = max(pixelOffset[0],max(pixelOffset[1],max(pixelOffset[2],max(pixelOffset[3],max(pixelOffset[4],pixelOffset[5])))));
+		float maxWeight = max(weights[0],max(weights[1],max(weights[2],max(weights[3],max(weights[4],weights[5])))));
 		for (int i = 0; i < 6; i++) {
-			if (weights[i]*pixelOffset[i] > weights[mi]*pixelOffset[mi])
+			weights[i] = pow(weights[i]/maxWeight, 1+2*blendFactor)*(pow(pixelOffset[i]+1-maxOffset, 1+blendFactor*100)+0.1); // <--- big brain, now only have to change this line
+			if (weights[i] > weights[mi])
 				mi = i;
-			total += weights[i]*(pixelOffset[i]+1);
+			total += weights[i];
 		}
-		baseColor.rgb = landColors[mi]*blendFactor*pow(landGloss[mi], 0.5);
-		normal.xyz = landNormals[mi]*blendFactor;
-		glossiness = landGloss[mi]*blendFactor;
 		for (int i = 0; i < 6; ++i) {
-			float w = weights[i]*(pixelOffset[i]+1)*(1.0-blendFactor)/total;
-			float w2 = weights[i]*(pixelOffset[i]+1)*(1.0-blendFactor*pow(landGloss[mi], 0.5))/total;
-			baseColor.rgb += landColors[i] * w2;
+			//float w = nw[i]*(blendFactor)/total;
+			float w = weights[i]/total;
+			baseColor.rgb += landColors[i] * w;
 			normal.xyz += landNormals[i] * w;
 			glossiness += landGloss[i] * w;
 		}
+		input.LandBlendWeights1 = float4(weights[0], weights[1], weights[2], weights[3])/total; // parallax shadow uses these
+		input.LandBlendWeights2.x = weights[4]/total;
+		input.LandBlendWeights2.y = weights[5]/total;
+		//baseColor.rgb = sh0[mi];
 	} else
 #		endif  // CPM_AVAILABLE
 	{
@@ -1599,22 +1602,22 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	float3 wetnessSpecular = 0.0;
 
-	float wetnessglossinessAlbedo = max(puddle, shoreFactorAlbedo * perPassWetnessEffects[0].MaxShoreWetness);
-	wetnessglossinessAlbedo *= wetnessglossinessAlbedo;
+	float wetnessGlossinessAlbedo = max(puddle, shoreFactorAlbedo * perPassWetnessEffects[0].MaxShoreWetness);
+	wetnessGlossinessAlbedo *= wetnessGlossinessAlbedo;
 
-	float wetnessglossinessSpecular = puddle;
-	wetnessglossinessSpecular = lerp(wetnessglossinessSpecular, wetnessglossinessSpecular * shoreFactor, input.WorldPosition.z < waterHeight);
+	float wetnessGlossinessSpecular = puddle;
+	wetnessGlossinessSpecular = lerp(wetnessGlossinessSpecular, wetnessGlossinessSpecular * shoreFactor, input.WorldPosition.z < waterHeight);
 
 	float flatnessAmount = smoothstep(perPassWetnessEffects[0].PuddleMaxAngle, 1.0, minWetnessAngle);
 
-	flatnessAmount *= smoothstep(perPassWetnessEffects[0].PuddleMinWetness, 1.0, wetnessglossinessSpecular);
+	flatnessAmount *= smoothstep(perPassWetnessEffects[0].PuddleMinWetness, 1.0, wetnessGlossinessSpecular);
 
 	wetnessNormal = normalize(lerp(wetnessNormal, float3(0, 0, 1), saturate(flatnessAmount)));
 
 	float3 rippleNormal = normalize(lerp(float3(0, 0, 1), raindropInfo.xyz, clamp(flatnessAmount, .2, 1)));
 	wetnessNormal = ReorientNormal(rippleNormal, wetnessNormal);
 
-	float waterRoughnessSpecular = 1.0 - wetnessglossinessSpecular;
+	float waterRoughnessSpecular = 1.0 - wetnessGlossinessSpecular;
 
 	if (waterRoughnessSpecular < 1.0)
 		wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, worldSpaceViewDirection, sRGB2Lin(dirLightColor) * perPassWetnessEffects[0].MaxDALCSpecular, waterRoughnessSpecular);
@@ -1872,11 +1875,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			if defined(ENVMAP) || defined(MULTI_LAYER_PARALLAX)
 	porosity = lerp(porosity, 0.0, saturate(sqrt(envMask)));
 #			endif
-	float wetnessDarkeningAmount = porosity * wetnessglossinessAlbedo;
+	float wetnessDarkeningAmount = porosity * wetnessGlossinessAlbedo;
 	baseColor.xyz = lerp(baseColor.xyz, pow(baseColor.xyz, 1.0 + wetnessDarkeningAmount), 0.8);
 #		endif
 	if (waterRoughnessSpecular < 1.0)
-		wetnessSpecular += GetWetnessAmbientSpecular(screenUV, wetnessNormal, worldSpaceVertexNormal, worldSpaceViewDirection, 1.0 - wetnessglossinessSpecular) * perPassWetnessEffects[0].MaxAmbientSpecular;
+		wetnessSpecular += GetWetnessAmbientSpecular(screenUV, wetnessNormal, worldSpaceVertexNormal, worldSpaceViewDirection, 1.0 - wetnessGlossinessSpecular) * perPassWetnessEffects[0].MaxAmbientSpecular;
 #	endif
 
 	float4 color;
@@ -1972,7 +1975,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz = sRGB2Lin(color.xyz);
 
 #	if defined(WETNESS_EFFECTS)
-	color.xyz += wetnessSpecular * wetnessglossinessSpecular;
+	color.xyz += wetnessSpecular * wetnessGlossinessSpecular;
 #	endif
 
 #	if defined(EYE)
