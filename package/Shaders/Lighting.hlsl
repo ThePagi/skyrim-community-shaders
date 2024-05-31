@@ -1283,24 +1283,28 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		float blendFactor = saturate(perPassParallax[0].TerrainParallaxBlending - sqrt(viewPosition.z/perPassParallax[0].MaxDistance));
 		float total = 0;
 		int mi = 0;
-		float maxOffset = max(pixelOffset[0],max(pixelOffset[1],max(pixelOffset[2],max(pixelOffset[3],max(pixelOffset[4],pixelOffset[5])))));
-		float maxWeight = max(weights[0],max(weights[1],max(weights[2],max(weights[3],max(weights[4],weights[5])))));
+		float maxOffset = max(pixelOffset[0], max(pixelOffset[1], max(pixelOffset[2], max(pixelOffset[3], max(pixelOffset[4], pixelOffset[5])))));
+		float maxWeight = max(weights[0], max(weights[1], max(weights[2], max(weights[3], max(weights[4], weights[5])))));
 		for (int i = 0; i < 6; i++) {
+<<<<<<< HEAD
 			weights[i] = pow(weights[i]/maxWeight, 1+2*blendFactor)*(pow(pixelOffset[i]+1-maxOffset, blendFactor*100)+0.1); // <--- big brain, now only have to change this line
+=======
+			weights[i] = pow(weights[i] / maxWeight, 1 + 2 * blendFactor) * (pow(pixelOffset[i] + 1 - maxOffset, 1 + blendFactor * 100) + 0.1);  // <--- big brain, now only have to change this line
+>>>>>>> 515c59c268d5995335de7de93510a2541f8072f8
 			if (weights[i] > weights[mi])
 				mi = i;
 			total += weights[i];
 		}
 		for (int i = 0; i < 6; ++i) {
 			//float w = nw[i]*(blendFactor)/total;
-			float w = weights[i]/total;
+			float w = weights[i] / total;
 			baseColor.rgb += landColors[i] * w;
 			normal.xyz += landNormals[i] * w;
 			glossiness += landGloss[i] * w;
 		}
-		input.LandBlendWeights1 = float4(weights[0], weights[1], weights[2], weights[3])/total; // parallax shadow uses these
-		input.LandBlendWeights2.x = weights[4]/total;
-		input.LandBlendWeights2.y = weights[5]/total;
+		input.LandBlendWeights1 = float4(weights[0], weights[1], weights[2], weights[3]) / total;  // parallax shadow uses these
+		input.LandBlendWeights2.x = weights[4] / total;
+		input.LandBlendWeights2.y = weights[5] / total;
 		//baseColor.rgb = sh0[mi];
 	} else
 #		endif  // CPM_AVAILABLE
