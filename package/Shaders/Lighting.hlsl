@@ -933,8 +933,6 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		endif
 #	endif
 
-
-
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -999,8 +997,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float2 uvOriginal = uv;
 
 #	if defined(LANDSCAPE)
-	float mipLevel[6]= { 0, 0, 0, 0, 0, 0 };
-	float sh0[6]= { 0, 0, 0, 0, 0, 0 };
+	float mipLevel[6] = { 0, 0, 0, 0, 0, 0 };
+	float sh0[6] = { 0, 0, 0, 0, 0, 0 };
 	float pixelOffset[6] = { 0, 0, 0, 0, 0, 0 };
 	float3 landColors[6] = { float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0) };
 	float3 landNormals[6] = { float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0) };
@@ -1134,7 +1132,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(WORLD_MAP)
 		normalSample.xyz = GetWorldMapNormal(input, normalSample.xyz, rawColorSample.xyz);  // TODO might require separate rawColorSample instead
-#	endif                                                                               // WORLD_MAP
+#	endif                                                                                  // WORLD_MAP
 
 #	if defined(LANDSCAPE)
 		landColors[0] = colorSample.rgb;
@@ -1280,14 +1278,14 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	baseColor = float4(0, 0, 0, 1);
 #		if defined(CPM_AVAILABLE)
 	if (perPassParallax[0].EnableTerrainParallax) {
-		float blendFactor = saturate(perPassParallax[0].TerrainParallaxBlending - sqrt(viewPosition.z/perPassParallax[0].MaxDistance));
+		float blendFactor = saturate(perPassParallax[0].TerrainParallaxBlending - sqrt(viewPosition.z / perPassParallax[0].MaxDistance));
 		float total = 0;
 		int mi = 0;
 		float maxOffset = max(pixelOffset[0], max(pixelOffset[1], max(pixelOffset[2], max(pixelOffset[3], max(pixelOffset[4], pixelOffset[5])))));
 		float maxWeight = max(weights[0], max(weights[1], max(weights[2], max(weights[3], max(weights[4], weights[5])))));
 		for (int i = 0; i < 6; i++) {
 <<<<<<< HEAD
-			weights[i] = pow(weights[i]/maxWeight, 1+2*blendFactor)*(pow(pixelOffset[i]+1-maxOffset, blendFactor*100)+0.1); // <--- big brain, now only have to change this line
+			weights[i] = pow(weights[i] / maxWeight, 1 + 2 * blendFactor) * (pow(pixelOffset[i] + 1 - maxOffset, blendFactor * 100) + 0.1);  // <--- big brain, now only have to change this line
 =======
 			weights[i] = pow(weights[i] / maxWeight, 1 + 2 * blendFactor) * (pow(pixelOffset[i] + 1 - maxOffset, 1 + blendFactor * 100) + 0.1);  // <--- big brain, now only have to change this line
 >>>>>>> 515c59c268d5995335de7de93510a2541f8072f8
