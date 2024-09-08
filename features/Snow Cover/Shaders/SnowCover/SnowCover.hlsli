@@ -7,7 +7,6 @@ Texture2D<float3> SnowNormal : register(t74);
 Texture2D<float4> SnowRMAOS : register(t75);
 Texture2D<float> SnowParallax : register(t76);
 
-
 float MyHash11(float p)
 {
 	return frac(sin(p) * 1e4);
@@ -116,27 +115,27 @@ void ApplySnowFoliage(inout float3 color, inout float3 worldNormal, inout float 
 
 float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh0, float snowDispScale, float3 p, float skylight, float3 viewPos, out float vnoise, out float snoise)
 {
-	float viewDist = max(1,sqrt(viewPos.z)/512);//max(1, (viewPos.z + (sin(viewPos.x * 7 + viewPos.z * 13))) / 512);
+	float viewDist = max(1, sqrt(viewPos.z) / 512);  //max(1, (viewPos.z + (sin(viewPos.x * 7 + viewPos.z * 13))) / 512);
 	fnl_state noise = fnlCreateState();
 	noise.noise_type = FNL_NOISE_VALUE_CUBIC;
 	noise.fractal_type = FNL_FRACTAL_PINGPONG;
 	noise.ping_pong_strength = 1.0;
 	noise.octaves = max(1, (2 / viewDist));
-	float v = 0.5;//fnlGetNoise2D(noise, p.x * 512, p.y * 512) / viewDist;
+	float v = 0.5;  //fnlGetNoise2D(noise, p.x * 512, p.y * 512) / viewDist;
 	noise.fractal_type = FNL_FRACTAL_FBM;
 	noise.noise_type = FNL_NOISE_OPENSIMPLEX2S;
 	noise.octaves = max(1, (5 / viewDist));
 	float simplex_scale = 1;
-	float s = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale) / viewDist;
-	float sx = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x)*viewDist, p.y * simplex_scale) / viewDist;
-	float sy = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y)*viewDist) / viewDist;
-	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(GetEnvironmentalMultiplier(p)+s+sh0*snowDispScale));
-	float parallax = 0.1*snowCoverSettings.ParallaxScale*(SnowParallax.Sample(SampColorSampler, snowCoverSettings.UVScale*p.xy/100).x-0.5);
-	float2 uv = snowCoverSettings.UVScale*p.xy/100 + parallax*viewPos.xy;
+	float s = 0.5;   //fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale) / viewDist;
+	float sx = 0.5;  //fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x)*viewDist, p.y * simplex_scale) / viewDist;
+	float sy = 0.5;  //fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y)*viewDist) / viewDist;
+	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(GetEnvironmentalMultiplier(p) + s + sh0 * snowDispScale));
+	float parallax = 0.1 * snowCoverSettings.ParallaxScale * (SnowParallax.Sample(SampColorSampler, snowCoverSettings.UVScale * p.xy / 100).x - 0.5);
+	float2 uv = snowCoverSettings.UVScale * p.xy / 100 + parallax * viewPos.xy;
 	color = lerp(color, SnowDiffuse.Sample(SampColorSampler, uv).rgb, mult);
 	float3 normal = TransformNormal(SnowNormal.Sample(SampNormalSampler, uv).rgb);
 	worldNormal = normalize(lerp(worldNormal, MyReorientNormal(worldNormal, normal), mult));
-	sh0 = saturate(sh0 + mult*parallax);
+	sh0 = saturate(sh0 + mult * parallax);
 	vnoise = (v)*0.5 + 0.5;
 	snoise = s * 0.5 + 0.5;
 	//color = normalize(abs(float3(sx - s, sy - s, 1.0-worldNormal.z)));

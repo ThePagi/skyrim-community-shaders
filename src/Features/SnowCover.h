@@ -40,7 +40,6 @@ public:
 		float logMicrofacetDensity = 33.f;
 		float microfacetRoughness = .15f;
 		float densityRandomization = 2.f;
-
 	};
 	static_assert(sizeof(Settings) % 16 == 0);
 
@@ -52,7 +51,6 @@ public:
 		uint pad[1];
 
 		Settings settings;
-
 	};
 	static_assert(sizeof(PerFrame) % 16 == 0);
 
@@ -61,8 +59,6 @@ public:
 	PerFrame GetCommonBufferData();
 
 	std::array<ID3D11ShaderResourceView*, 4> views;
-
-
 
 	bool requiresUpdate = true;
 	float wetnessDepth = 0.0f;

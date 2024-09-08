@@ -156,7 +156,6 @@ struct SnowCoverSettings
 	uint2 pad2;
 
 	float4 Glint;
-
 };
 
 struct PBRSettings
