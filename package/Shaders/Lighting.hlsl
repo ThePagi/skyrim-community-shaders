@@ -26,6 +26,13 @@
 #	define LOD
 #endif
 
+#if defined(SNOW_COVER)
+#	undef SNOW
+#	undef PROJECTED_UV
+#	undef SPARKLE
+#	include "SnowCover/SnowCover.hlsli"
+#endif
+
 struct VS_INPUT
 {
 	float4 Position : POSITION0;
@@ -955,6 +962,9 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #	endif
 
 #	if defined(TRUE_PBR)
+#		if defined(SNOW_COVER)
+#			define GLINT
+#		endif
 #		include "Common/PBR.hlsli"
 #	endif
 
@@ -1066,7 +1076,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(LANDSCAPE)
 	float mipLevels[6];
-	float sh0;
+	float sh0 = 0.5;
 	float pixelOffset;
 
 #		if defined(EMAT)
@@ -1077,7 +1087,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #	else
 	float mipLevel;
-	float sh0;
+	float sh0 = 0.5;
 	float pixelOffset;
 
 #		if defined(EMAT)
@@ -1760,6 +1770,56 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	endif
 
+#	if defined(HAIR)
+	float3 vertexColor = lerp(1, TintColor.xyz, input.Color.y);
+#	else
+	float3 vertexColor = input.Color.xyz;
+#	endif  // defined (HAIR)
+	baseColor.rgb *= vertexColor;
+
+#	if defined(SKYLIGHTING)
+	float occlusion = inWorld ? smoothstep(0,1,(shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
+#	else
+	float occlusion = inWorld ? 1 : 0;
+#endif
+
+#	if defined(SNOW_COVER)
+	float snowDispScale = 1.0;
+	
+#		if defined(TRUE_PBR)
+	float shininess = 100;
+#			if defined(LANDSCAPE)
+	snowDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
+	 					max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
+	  					max(displacementParams[4].HeightScale * input.LandBlendWeights2.x, displacementParams[5].HeightScale * input.LandBlendWeights2.y)))));
+#			else
+	snowDispScale = displacementParams.HeightScale;
+#			endif
+#		endif
+
+	//float3 pos = float3(diffuseUv.x, diffuseUv.y, 0);
+	float3 pos = (input.WorldPosition + CameraPosAdjust[eyeIndex]).xyz;
+	if (snowCoverSettings.EnableSnowCover)
+#		if defined(TREE_ANIM)
+		ApplySnowFoliage(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, pos);
+#		else
+#			if defined(TRUE_PBR)
+		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, snowDispScale, pos, occlusion, viewPosition.z);
+#			else
+		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0,  snowDispScale, pos, occlusion, viewPosition.z);
+#			endif
+#		endif
+	glossiness = glossiness.xxxx;
+
+#		if !defined(DRAW_IN_WORLDSPACE)  // && (defined(SKINNED) || !defined(MODELSPACENORMALS))
+	[flatten] if (!input.WorldSpace)
+		modelNormal.xyz = mul(transpose(input.World[eyeIndex]), float4(worldSpaceNormal, 0));
+	else
+#		endif
+		modelNormal.xyz = worldSpaceNormal;
+	modelNormal.xyz = normalize(modelNormal.xyz);
+#	endif
+
 	float4 waterData = GetWaterData(input.WorldPosition.xyz);
 	float waterHeight = waterData.w;
 
@@ -2357,11 +2417,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #	endif
 
-#	if defined(HAIR)
-	float3 vertexColor = lerp(1, TintColor.xyz, input.Color.y);
-#	else
-	float3 vertexColor = input.Color.xyz;
-#	endif  // defined (HAIR)
+
 
 	float4 color = 0;
 
@@ -2404,8 +2460,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	else
 	color.xyz += diffuseColor * baseColor.xyz;
 #	endif
-
-	color.xyz *= vertexColor;
 
 #	if defined(MULTI_LAYER_PARALLAX)
 	float layerValue = MultiLayerParallaxData.x * TexLayerSampler.Sample(SampLayerSampler, uv).w;

@@ -134,6 +134,23 @@ struct SkylightingSettings
 	uint3 pad2;
 };
 
+struct SnowCoverSettings
+{
+	uint Month;
+	float Time;
+	float Snowing;
+	float SnowAmount;
+	float SnowpileAmount;
+
+	uint EnableSnowCover;
+	uint AffectFoliageColor;
+	float SnowHeightOffset;
+	float FoliageHeightOffset;
+	uint MaxSummerMonth;
+	uint MaxWinterMonth;
+	uint pad;
+};
+
 struct PBRSettings
 {
 	uint UseMultipleScattering;
@@ -150,6 +167,7 @@ cbuffer FeatureData : register(b6)
 	WetnessEffectsSettings wetnessEffectsSettings;
 	LightLimitFixSettings lightLimitFixSettings;
 	SkylightingSettings skylightingSettings;
+	SnowCoverSettings snowCoverSettings;
 	PBRSettings pbrSettings;
 };
 
