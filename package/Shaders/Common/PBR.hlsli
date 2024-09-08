@@ -86,7 +86,6 @@ namespace PBR
 		return surfaceProperties;
 	}
 
-
 	struct LightProperties
 	{
 		float3 LinearLightColor;

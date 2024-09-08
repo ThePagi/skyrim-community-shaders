@@ -9,7 +9,7 @@ const float TRANSITION_CURVE_MULTIPLIER = 2.0f;
 const float TRANSITION_DENOMINATOR = 256.0f;
 const float DRY_WETNESS = 0.0f;
 const float RAIN_DELTA_PER_SECOND = -2.0f / 3600.0f;
-const float SNOWY_DAY_DELTA_PER_SECOND = 2.0f / 3600.0f;  
+const float SNOWY_DAY_DELTA_PER_SECOND = 2.0f / 3600.0f;
 const float CLOUDY_DAY_DELTA_PER_SECOND = -0.735f / 3600.0f;
 const float CLEAR_DAY_DELTA_PER_SECOND = -1.518f / 3600.0f;
 const float WETNESS_SCALE = 2.0;  // Speed at which wetness builds up and drys.
@@ -211,7 +211,6 @@ void SnowCover::Prepass()
 {
 	auto& context = State::GetSingleton()->context;
 	context->PSSetShaderResources(73, (uint)views.size(), views.data());
-
 }
 
 void SnowCover::Reset()
