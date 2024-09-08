@@ -37,8 +37,7 @@ namespace PBR
 #	include "Common/Glints/Glints2023.hlsli"
 #endif
 
-#	include "Common/PBRSurfaceProperties.hlsli"
-
+#include "Common/PBRSurfaceProperties.hlsli"
 
 	struct LightProperties
 	{

@@ -1,7 +1,7 @@
 #include "Common/SharedData.hlsli"
 #include "SnowCover/FastNoiseLite.hlsl"
 #if defined(PSHADER)
-#include "Common/PBRSurfaceProperties.hlsli"
+#	include "Common/PBRSurfaceProperties.hlsli"
 
 float MyHash11(float p)
 {
@@ -111,7 +111,7 @@ void ApplySnowFoliage(inout float3 color, inout float3 worldNormal, inout float 
 
 float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh0, float snowDispScale, float3 p, float skylight, float3 viewPos, out float vnoise, out float snoise)
 {
-	float viewDist = max(1,sqrt(viewPos.z)/512);//max(1, (viewPos.z + (sin(viewPos.x * 7 + viewPos.z * 13))) / 512);
+	float viewDist = max(1, sqrt(viewPos.z) / 512);  //max(1, (viewPos.z + (sin(viewPos.x * 7 + viewPos.z * 13))) / 512);
 	fnl_state noise = fnlCreateState();
 	noise.noise_type = FNL_NOISE_VALUE_CUBIC;
 	noise.fractal_type = FNL_FRACTAL_PINGPONG;
@@ -123,17 +123,17 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 	noise.octaves = max(1, (5 / viewDist));
 	float simplex_scale = 1;
 	float s = fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale) / viewDist;
-	float sx = fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x)*viewDist, p.y * simplex_scale) / viewDist;
-	float sy = fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y)*viewDist) / viewDist;
-	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(GetEnvironmentalMultiplier(p)+s+sh0*snowDispScale));
-	sh0 = saturate(sh0 + mult*s*0.1/snowDispScale);
+	float sx = fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x) * viewDist, p.y * simplex_scale) / viewDist;
+	float sy = fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y) * viewDist) / viewDist;
+	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(GetEnvironmentalMultiplier(p) + s + sh0 * snowDispScale));
+	sh0 = saturate(sh0 + mult * s * 0.1 / snowDispScale);
 	vnoise = (v)*0.5 + 0.5;
 	snoise = s * 0.5 + 0.5;
 	//color = normalize(abs(float3(sx - s, sy - s, 1.0-worldNormal.z)));
 	//color = lerp(color, 0.35 + v * 0.05 + s * 0.001, mult);
 	//color = 1/viewDist;
 	//color = worldNormal*0.5+0.5;
-	worldNormal = normalize(lerp(worldNormal, normalize(float3(sx-s+sin(v*3.14)*0.02, sy-s+cos(v*3.14)*0.02,0.05+vnoise*0.05)), mult));
+	worldNormal = normalize(lerp(worldNormal, normalize(float3(sx - s + sin(v * 3.14) * 0.02, sy - s + cos(v * 3.14) * 0.02, 0.05 + vnoise * 0.05)), mult));
 	//worldNormal = float3(0,0,1);
 	//worldNormal = normalize(lerp(worldNormal, MyReorientNormal(worldNormal, normalize(float3(sx-s, sy-s,vnoise*0.2))), mult));
 	return mult;

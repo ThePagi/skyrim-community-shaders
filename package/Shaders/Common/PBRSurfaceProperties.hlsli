@@ -1,5 +1,6 @@
-namespace PBR{
-    	struct SurfaceProperties
+namespace PBR
+{
+	struct SurfaceProperties
 	{
 		float3 BaseColor;
 		float Roughness;

@@ -1778,20 +1778,20 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	baseColor.rgb *= vertexColor;
 
 #	if defined(SKYLIGHTING)
-	float occlusion = inWorld ? smoothstep(0,1,(shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
+	float occlusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
 #	else
 	float occlusion = inWorld ? 1 : 0;
-#endif
+#	endif
 
 #	if defined(SNOW_COVER)
 	float snowDispScale = 1.0;
-	
+
 #		if defined(TRUE_PBR)
 	float shininess = 100;
 #			if defined(LANDSCAPE)
 	snowDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
-	 					max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
-	  					max(displacementParams[4].HeightScale * input.LandBlendWeights2.x, displacementParams[5].HeightScale * input.LandBlendWeights2.y)))));
+																						   max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
+																																								  max(displacementParams[4].HeightScale * input.LandBlendWeights2.x, displacementParams[5].HeightScale * input.LandBlendWeights2.y)))));
 #			else
 	snowDispScale = displacementParams.HeightScale;
 #			endif
@@ -1806,7 +1806,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			if defined(TRUE_PBR)
 		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, snowDispScale, pos, occlusion, viewPosition.z);
 #			else
-		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0,  snowDispScale, pos, occlusion, viewPosition.z);
+		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, snowDispScale, pos, occlusion, viewPosition.z);
 #			endif
 #		endif
 	glossiness = glossiness.xxxx;
@@ -2416,8 +2416,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	wetnessSpecular += wetnessReflectance;
 #		endif
 #	endif
-
-
 
 	float4 color = 0;
 
