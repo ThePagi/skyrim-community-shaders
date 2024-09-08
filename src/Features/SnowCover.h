@@ -34,13 +34,13 @@ public:
 
 		float UVScale = 1;
 		float ParallaxScale = 0.1;
+		uint pad[2];
 		//glint
 		float screenSpaceScale = 1.2f;
 		float logMicrofacetDensity = 33.f;
 		float microfacetRoughness = .15f;
 		float densityRandomization = 2.f;
 
-		uint pad[2];
 	};
 	static_assert(sizeof(Settings) % 16 == 0);
 

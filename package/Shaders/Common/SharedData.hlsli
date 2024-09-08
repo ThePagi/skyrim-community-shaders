@@ -153,9 +153,9 @@ struct SnowCoverSettings
 
 	float UVScale;
 	float ParallaxScale;
+	uint2 pad2;
 
 	float4 Glint;
-	uint2 pad2;
 
 };
 

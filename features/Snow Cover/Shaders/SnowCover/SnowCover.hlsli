@@ -131,10 +131,8 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 	float sx = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x)*viewDist, p.y * simplex_scale) / viewDist;
 	float sy = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y)*viewDist) / viewDist;
 	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(GetEnvironmentalMultiplier(p)+s+sh0*snowDispScale));
-	float parallax = 0.0001*(SnowParallax.Sample(SampColorSampler, p.xy/100).x-0.5);
-	if(!snowCoverSettings.AffectFoliageColor)
-		parallax = 0;
-	float2 uv = p.xy/100 + parallax*viewPos.xy;
+	float parallax = 0.1*snowCoverSettings.ParallaxScale*(SnowParallax.Sample(SampColorSampler, snowCoverSettings.UVScale*p.xy/100).x-0.5);
+	float2 uv = snowCoverSettings.UVScale*p.xy/100 + parallax*viewPos.xy;
 	color = lerp(color, SnowDiffuse.Sample(SampColorSampler, uv).rgb, mult);
 	float3 normal = TransformNormal(SnowNormal.Sample(SampNormalSampler, uv).rgb);
 	worldNormal = normalize(lerp(worldNormal, MyReorientNormal(worldNormal, normal), mult));

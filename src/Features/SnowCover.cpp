@@ -49,7 +49,7 @@ void SnowCover::DrawSettings()
 
 		if (ImGui::TreeNodeEx("Snow Material", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::SliderFloat("UV Scale", &settings.UVScale, 0.1f, 10.f, "%.1f");
-			ImGui::SliderFloat("Parallax Scale", &settings.UVScale, 0.01f, 10.f, "%.1f");
+			ImGui::SliderFloat("Parallax Scale", &settings.ParallaxScale, 0.f, 1.f, "%.1f");
 			ImGui::SliderFloat("Screenspace Scale", &settings.screenSpaceScale, 0.f, 3.f, "%.3f");
 			ImGui::SliderFloat("Log Microfacet Density", &settings.logMicrofacetDensity, 0.f, 40.f, "%.3f");
 			ImGui::SliderFloat("Microfacet Roughness", &settings.microfacetRoughness, 0.f, 1.f, "%.3f");
@@ -221,15 +221,12 @@ void SnowCover::Reset()
 
 void SnowCover::Load(json& o_json)
 {
-	if (o_json[GetName()].is_object())
-		settings = o_json[GetName()];
-
-	Feature::Load(o_json);
+	settings = o_json;
 }
 
 void SnowCover::Save(json& o_json)
 {
-	o_json[GetName()] = settings;
+	o_json = settings;
 }
 
 void SnowCover::RestoreDefaultSettings()
