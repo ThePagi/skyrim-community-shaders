@@ -136,19 +136,27 @@ struct SkylightingSettings
 
 struct SnowCoverSettings
 {
-	uint Month;
-	float Time;
-	float Snowing;
+	float Month;
+	float TimeSnowing;
 	float SnowAmount;
-	float SnowpileAmount;
+	uint pad;
 
 	uint EnableSnowCover;
 	uint AffectFoliageColor;
 	float SnowHeightOffset;
 	float FoliageHeightOffset;
+
 	uint MaxSummerMonth;
 	uint MaxWinterMonth;
-	uint pad;
+	float SummerHeightOffset;
+	float WinterHeightOffset;
+
+	float UVScale;
+	float ParallaxScale;
+
+	float4 Glint;
+	uint2 pad2;
+
 };
 
 struct PBRSettings

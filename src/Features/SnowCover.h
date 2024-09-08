@@ -3,6 +3,7 @@
 #include "Buffer.h"
 #include "Feature.h"
 #include "State.h"
+#include "TruePBR.h"
 
 struct SnowCover : Feature
 {
@@ -25,25 +26,43 @@ public:
 		uint AffectFoliageColor = true;
 		float SnowHeightOffset = 0;
 		float FoliageHeightOffset = -512;
+
 		uint MaxSummerMonth = 6;
 		uint MaxWinterMonth = 0;
+		float SummerHeightOffset = 0;
+		float WinterHeightOffset = -10000;
+
+		float UVScale = 1;
+		float ParallaxScale = 0.1;
+		//glint
+		float screenSpaceScale = 1.2f;
+		float logMicrofacetDensity = 33.f;
+		float microfacetRoughness = .15f;
+		float densityRandomization = 2.f;
+
+		uint pad[2];
 	};
+	static_assert(sizeof(Settings) % 16 == 0);
 
 	struct alignas(16) PerFrame
 	{
-		uint Month;
-		float Time;
-		float Snowing;
+		float Month;
+		float TimeSnowing;
 		float SnowAmount;
-		float SnowpileAmount;
+		uint pad[1];
+
 		Settings settings;
 
-		float pad[1];
 	};
+	static_assert(sizeof(PerFrame) % 16 == 0);
 
 	Settings settings;
 
 	PerFrame GetCommonBufferData();
+
+	std::array<ID3D11ShaderResourceView*, 4> views;
+
+
 
 	bool requiresUpdate = true;
 	float wetnessDepth = 0.0f;
@@ -55,6 +74,7 @@ public:
 
 	virtual void SetupResources();
 	virtual void Reset();
+	virtual void Prepass() override;
 
 	virtual void DrawSettings();
 

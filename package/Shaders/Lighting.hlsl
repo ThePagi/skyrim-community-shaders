@@ -26,12 +26,6 @@
 #	define LOD
 #endif
 
-#if defined(SNOW_COVER)
-#	undef SNOW
-#	undef PROJECTED_UV
-#	undef SPARKLE
-#	include "SnowCover/SnowCover.hlsli"
-#endif
 
 struct VS_INPUT
 {
@@ -1010,6 +1004,13 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		define SL_INCL_METHODS
 #		include "Skylighting/Skylighting.hlsli"
 #	endif
+
+#if defined(SNOW_COVER)
+#	undef SNOW
+#	undef PROJECTED_UV
+#	undef SPARKLE
+#	include "SnowCover/SnowCover.hlsli"
+#endif
 
 #	define LinearSampler SampColorSampler
 

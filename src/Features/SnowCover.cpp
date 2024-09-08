@@ -1,14 +1,15 @@
 #include "SnowCover.h"
 
 #include "Util.h"
+#include <DDSTextureLoader.h>
 
 const float MIN_START_PERCENTAGE = 0.05f;
 const float DEFAULT_TRANSITION_PERCENTAGE = 1.0f;
 const float TRANSITION_CURVE_MULTIPLIER = 2.0f;
 const float TRANSITION_DENOMINATOR = 256.0f;
 const float DRY_WETNESS = 0.0f;
-const float RAIN_DELTA_PER_SECOND = 2.0f / 3600.0f;
-const float SNOWY_DAY_DELTA_PER_SECOND = -0.0f / 3600.0f;  // Only doing evaporation until snow wetness feature is added
+const float RAIN_DELTA_PER_SECOND = -2.0f / 3600.0f;
+const float SNOWY_DAY_DELTA_PER_SECOND = 2.0f / 3600.0f;  
 const float CLOUDY_DAY_DELTA_PER_SECOND = -0.735f / 3600.0f;
 const float CLEAR_DAY_DELTA_PER_SECOND = -1.518f / 3600.0f;
 const float WETNESS_SCALE = 2.0;  // Speed at which wetness builds up and drys.
@@ -32,7 +33,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	SnowHeightOffset,
 	FoliageHeightOffset,
 	MaxSummerMonth,
-	MaxWinterMonth)
+	MaxWinterMonth, SummerHeightOffset, WinterHeightOffset, UVScale, ParallaxScale, screenSpaceScale, logMicrofacetDensity, microfacetRoughness, densityRandomization)
 
 void SnowCover::DrawSettings()
 {
@@ -43,13 +44,18 @@ void SnowCover::DrawSettings()
 		ImGui::SliderFloat("Foliage Color Height Offset", &settings.FoliageHeightOffset, -10000.0f, 10000.0f);
 		ImGui::SliderInt("Maximum Summer Month", (int*)&settings.MaxSummerMonth, 0, 11);
 		ImGui::SliderInt("Maximum Winter Month", (int*)&settings.MaxWinterMonth, 0, 11);
-		ImGui::TreePop();
-	}
+		ImGui::SliderFloat("Summer Height Offset", &settings.SummerHeightOffset, -10000.0f, 10000.0f);
+		ImGui::SliderFloat("Winter Height Offset", &settings.WinterHeightOffset, -10000.0f, 10000.0f);
 
-	ImGui::Spacing();
-	ImGui::Spacing();
-
-	if (ImGui::TreeNodeEx("...", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (ImGui::TreeNodeEx("Snow Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::SliderFloat("UV Scale", &settings.UVScale, 0.1f, 10.f, "%.1f");
+			ImGui::SliderFloat("Parallax Scale", &settings.UVScale, 0.01f, 10.f, "%.1f");
+			ImGui::SliderFloat("Screenspace Scale", &settings.screenSpaceScale, 0.f, 3.f, "%.3f");
+			ImGui::SliderFloat("Log Microfacet Density", &settings.logMicrofacetDensity, 0.f, 40.f, "%.3f");
+			ImGui::SliderFloat("Microfacet Roughness", &settings.microfacetRoughness, 0.f, 1.f, "%.3f");
+			ImGui::SliderFloat("Density Randomization", &settings.densityRandomization, 0.f, 5.f, "%.3f");
+			ImGui::TreePop();
+		}
 		ImGui::TreePop();
 	}
 
@@ -105,8 +111,7 @@ void SnowCover::Draw(const RE::BSShader*, const uint32_t)
 SnowCover::PerFrame SnowCover::GetCommonBufferData()
 {
 	PerFrame data{};
-	data.SnowAmount = DRY_WETNESS;
-	data.SnowpileAmount = DRY_WETNESS;
+	data.SnowAmount = 0;
 	currentWeatherID = 0;
 	uint32_t previousLastWeatherID = lastWeatherID;
 	lastWeatherID = 0;
@@ -125,7 +130,8 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 					}
 					currentWeatherID = currentWeather->GetFormID();
 					if (auto calendar = RE::Calendar::GetSingleton()) {
-						data.Month = calendar->GetMonth();
+						auto time = calendar->GetTime();
+						data.Month = static_cast<float>((time.tm_mon + (time.tm_mday + (time.tm_hour + (time.tm_min + time.tm_sec / 61.0) / 60.0) / 24.0) / 32.0) / 12.0);
 						float currentWeatherWetnessDepth = wetnessDepth;
 						float currentWeatherPuddleDepth = puddleDepth;
 						float currentGameTime = calendar->GetCurrentGameTime() * SECONDS_IN_A_DAY;
@@ -174,8 +180,6 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 
 						// Calculate the wetness value from the water depth
 						data.SnowAmount = std::min(wetnessDepth, MAX_WETNESS);
-						data.SnowpileAmount = std::min(puddleDepth, MAX_PUDDLE_WETNESS);
-						data.Snowing = std::lerp(lastWeatherRaining, currentWeatherRaining, weatherTransitionPercentage);
 						previousWeatherTransitionPercentage = weatherTransitionPercentage;
 					}
 				}
@@ -186,7 +190,7 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 	static size_t rainTimer = 0;                                       // size_t for precision
 	if (!RE::UI::GetSingleton()->GameIsPaused())                       // from lightlimitfix
 		rainTimer += (size_t)(RE::GetSecondsSinceLastFrame() * 1000);  // BSTimer::delta is always 0 for some reason
-	data.Time = rainTimer / 1000.f;
+	data.TimeSnowing = rainTimer / 1000.f;
 
 	data.settings = settings;
 
@@ -195,6 +199,19 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 
 void SnowCover::SetupResources()
 {
+	auto& device = State::GetSingleton()->device;
+	auto& context = State::GetSingleton()->context;
+	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow.dds", nullptr, &views.at(0));
+	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_n.dds", nullptr, &views.at(1));
+	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_rmaos.dds", nullptr, &views.at(2));
+	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_p.dds", nullptr, &views.at(3));
+}
+
+void SnowCover::Prepass()
+{
+	auto& context = State::GetSingleton()->context;
+	context->PSSetShaderResources(73, (uint)views.size(), views.data());
+
 }
 
 void SnowCover::Reset()

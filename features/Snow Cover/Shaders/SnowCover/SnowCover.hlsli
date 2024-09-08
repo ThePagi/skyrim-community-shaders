@@ -1,7 +1,12 @@
 #include "Common/SharedData.hlsli"
 #include "SnowCover/FastNoiseLite.hlsl"
 #if defined(PSHADER)
-#include "Common/PBRSurfaceProperties.hlsli"
+
+Texture2D<float4> SnowDiffuse : register(t73);
+Texture2D<float3> SnowNormal : register(t74);
+Texture2D<float4> SnowRMAOS : register(t75);
+Texture2D<float> SnowParallax : register(t76);
+
 
 float MyHash11(float p)
 {
@@ -117,23 +122,30 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 	noise.fractal_type = FNL_FRACTAL_PINGPONG;
 	noise.ping_pong_strength = 1.0;
 	noise.octaves = max(1, (2 / viewDist));
-	float v = fnlGetNoise2D(noise, p.x * 512, p.y * 512) / viewDist;
+	float v = 0.5;//fnlGetNoise2D(noise, p.x * 512, p.y * 512) / viewDist;
 	noise.fractal_type = FNL_FRACTAL_FBM;
 	noise.noise_type = FNL_NOISE_OPENSIMPLEX2S;
 	noise.octaves = max(1, (5 / viewDist));
 	float simplex_scale = 1;
-	float s = fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale) / viewDist;
-	float sx = fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x)*viewDist, p.y * simplex_scale) / viewDist;
-	float sy = fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y)*viewDist) / viewDist;
+	float s = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale) / viewDist;
+	float sx = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale + (1 + worldNormal.x)*viewDist, p.y * simplex_scale) / viewDist;
+	float sy = 0.5;//fnlGetNoise2D(noise, p.x * simplex_scale, p.y * simplex_scale + (1 + worldNormal.y)*viewDist) / viewDist;
 	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(GetEnvironmentalMultiplier(p)+s+sh0*snowDispScale));
-	sh0 = saturate(sh0 + mult*s*0.1/snowDispScale);
+	float parallax = 0.0001*(SnowParallax.Sample(SampColorSampler, p.xy/100).x-0.5);
+	if(!snowCoverSettings.AffectFoliageColor)
+		parallax = 0;
+	float2 uv = p.xy/100 + parallax*viewPos.xy;
+	color = lerp(color, SnowDiffuse.Sample(SampColorSampler, uv).rgb, mult);
+	float3 normal = TransformNormal(SnowNormal.Sample(SampNormalSampler, uv).rgb);
+	worldNormal = normalize(lerp(worldNormal, MyReorientNormal(worldNormal, normal), mult));
+	sh0 = saturate(sh0 + mult*parallax);
 	vnoise = (v)*0.5 + 0.5;
 	snoise = s * 0.5 + 0.5;
 	//color = normalize(abs(float3(sx - s, sy - s, 1.0-worldNormal.z)));
 	//color = lerp(color, 0.35 + v * 0.05 + s * 0.001, mult);
 	//color = 1/viewDist;
 	//color = worldNormal*0.5+0.5;
-	worldNormal = normalize(lerp(worldNormal, normalize(float3(sx-s+sin(v*3.14)*0.02, sy-s+cos(v*3.14)*0.02,0.05+vnoise*0.05)), mult));
+	//worldNormal = normalize(lerp(worldNormal, normalize(float3(sx-s+sin(v*3.14)*0.02, sy-s+cos(v*3.14)*0.02,0.05+vnoise*0.05)), mult));
 	//worldNormal = float3(0,0,1);
 	//worldNormal = normalize(lerp(worldNormal, MyReorientNormal(worldNormal, normalize(float3(sx-s, sy-s,vnoise*0.2))), mult));
 	return mult;
@@ -144,15 +156,15 @@ void ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::Surfa
 	float v;
 	float s;
 	float mult = ApplySnowBase(color, worldNormal, sh0, snowDispScale, p, skylight, viewPos, v, s);
-	color = lerp(color, 0.8 + s * 0.15, mult);
+	//color = lerp(color, 0.8 + s * 0.15, mult);
 	prop.Metallic *= mult;
 	prop.Roughness = lerp(prop.Roughness, 0.9 - 0.6 * pow(v * s, 3.0), mult);
 	prop.F0 = lerp(prop.F0, 0.04, mult);
 	//prop.AO = lerp(prop.AO, saturate(max(pow(0.5 * s, 0.5) + 0.5, v)), mult);
-	prop.GlintScreenSpaceScale = lerp(prop.GlintScreenSpaceScale, 1.15, mult);
-	prop.GlintLogMicrofacetDensity = lerp(prop.GlintLogMicrofacetDensity, 40, mult);
-	prop.GlintMicrofacetRoughness = lerp(prop.GlintMicrofacetRoughness, 0.01, mult);
-	prop.GlintDensityRandomization = lerp(prop.GlintDensityRandomization, 5.0, mult);
+	prop.GlintScreenSpaceScale = lerp(prop.GlintScreenSpaceScale, snowCoverSettings.Glint.x, mult);
+	prop.GlintLogMicrofacetDensity = lerp(prop.GlintLogMicrofacetDensity, snowCoverSettings.Glint.y, mult);
+	prop.GlintMicrofacetRoughness = lerp(prop.GlintMicrofacetRoughness, snowCoverSettings.Glint.z, mult);
+	prop.GlintDensityRandomization = lerp(prop.GlintDensityRandomization, snowCoverSettings.Glint.w, mult);
 }
 #	else
 void ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float snowDispScale, float3 p, float skylight, float3 viewPos)
@@ -161,7 +173,7 @@ void ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossin
 	float s;
 	//color = sRGB2Lin(color);
 	float mult = ApplySnowBase(color, worldNormal, sh0, snowDispScale, p, skylight, viewPos, v, s);
-	color = lerp(color, 0.35 + v * 0.05 + s * 0.001, mult);
+	//color = lerp(color, 0.35 + v * 0.05 + s * 0.001, mult);
 	//color = Lin2sRGB(color);
 	glossiness = lerp(glossiness, 0.5 * pow(v * s, 3.0), mult);
 	shininess = lerp(shininess, max(1, pow(1 - v, 3.0) * 100), mult);
