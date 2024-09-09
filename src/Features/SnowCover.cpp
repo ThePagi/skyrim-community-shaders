@@ -49,7 +49,7 @@ void SnowCover::DrawSettings()
 
 		if (ImGui::TreeNodeEx("Snow Material", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::SliderFloat("UV Scale", &settings.UVScale, 0.1f, 10.f, "%.1f");
-			ImGui::SliderFloat("Parallax Scale", &settings.ParallaxScale, 0.f, 1.f, "%.1f");
+			ImGui::SliderFloat("Parallax Scale", &settings.ParallaxScale, 0.f, 2.f, "%.1f");
 			ImGui::SliderFloat("Screenspace Scale", &settings.screenSpaceScale, 0.f, 3.f, "%.3f");
 			ImGui::SliderFloat("Log Microfacet Density", &settings.logMicrofacetDensity, 0.f, 40.f, "%.3f");
 			ImGui::SliderFloat("Microfacet Roughness", &settings.microfacetRoughness, 0.f, 1.f, "%.3f");
@@ -121,6 +121,7 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 
 	if (settings.EnableSnowCover) {
 		if (auto sky = RE::Sky::GetSingleton()) {
+			data.Sky = static_cast<uint>(sky->mode.get());
 			if (sky->mode.get() == RE::Sky::Mode::kFull) {
 				if (auto currentWeather = sky->currentWeather) {
 					if (currentWeather->precipitationData && currentWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kSnow)) {
@@ -131,7 +132,7 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 					currentWeatherID = currentWeather->GetFormID();
 					if (auto calendar = RE::Calendar::GetSingleton()) {
 						auto time = calendar->GetTime();
-						data.Month = static_cast<float>((time.tm_mon + (time.tm_mday + (time.tm_hour + (time.tm_min + time.tm_sec / 61.0) / 60.0) / 24.0) / 32.0) / 12.0);
+						data.Month = static_cast<float>(time.tm_mon + (time.tm_mday + (time.tm_hour + (time.tm_min + time.tm_sec / 61.0) / 60.0) / 24.0) / 32.0);
 						float currentWeatherWetnessDepth = wetnessDepth;
 						float currentWeatherPuddleDepth = puddleDepth;
 						float currentGameTime = calendar->GetCurrentGameTime() * SECONDS_IN_A_DAY;

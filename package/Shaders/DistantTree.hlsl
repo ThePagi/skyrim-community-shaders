@@ -5,6 +5,7 @@
 #include "Common/Random.hlsli"
 #include "Common/SharedData.hlsli"
 #include "Common/VR.hlsli"
+#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -171,6 +172,15 @@ const static float DepthOffsets[16] = {
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
+#	if defined(SNOW_COVER)
+#		undef SNOW
+#		undef PROJECTED_UV
+#		undef SPARKLE
+#		define BASIC_SNOW_COVER
+#		define SampColorSampler SampDiffuse
+#		include "SnowCover/SnowCover.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT psout;
@@ -206,6 +216,14 @@ PS_OUTPUT main(PS_INPUT input)
 	if ((baseColor.w - AlphaTestRefRS) < 0) {
 		discard;
 	}
+	float3 ddx = ddx_coarse(input.WorldPosition);
+	float3 ddy = ddy_coarse(input.WorldPosition);
+	float3 normal = normalize(normalize(cross(ddx, ddy)) + float3(0, 0, 1));
+
+#			if defined(SNOW_COVER)
+	if (snowCoverSettings.EnableSnowCover)
+		ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, 1);
+#			endif
 
 #		if defined(DEFERRED)
 	float3 viewPosition = mul(CameraView[eyeIndex], float4(input.WorldPosition.xyz, 1)).xyz;
@@ -235,9 +253,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 	float3 diffuseColor = DirLightColorShared.xyz * dirShadow;
 
-	float3 ddx = ddx_coarse(input.WorldPosition);
-	float3 ddy = ddy_coarse(input.WorldPosition);
-	float3 normal = normalize(cross(ddx, ddy));
+
 
 #			if !defined(SSGI)
 	float3 directionalAmbientColor = mul(DirectionalAmbientShared, float4(normal, 1.0));
@@ -255,9 +271,6 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Albedo = float4(baseColor.xyz * 0.5, 1);
 	psout.Masks = float4(0, 0, 1, 0);
 #		else
-	float3 ddx = ddx_coarse(input.WorldPosition);
-	float3 ddy = ddy_coarse(input.WorldPosition);
-	float3 normal = normalize(cross(ddx, ddy));
 
 	float3 color = baseColor.xyz * (DiffuseColor.xyz + AmbientColor.xyz);
 	psout.Diffuse = float4(color, 1.0);

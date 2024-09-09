@@ -142,7 +142,7 @@ struct SnowCoverSettings
 	float Month;
 	float TimeSnowing;
 	float SnowAmount;
-	uint pad;
+	uint Sky;
 
 	uint EnableSnowCover;
 	uint AffectFoliageColor;

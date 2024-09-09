@@ -48,7 +48,7 @@ public:
 		float Month;
 		float TimeSnowing;
 		float SnowAmount;
-		uint pad[1];
+		uint Sky;
 
 		Settings settings;
 	};
