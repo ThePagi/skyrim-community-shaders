@@ -109,7 +109,7 @@ void ApplySnowFoliage(inout float3 color, inout float3 worldNormal, float3 p, fl
 
 }
 #if !defined(BASIC_SNOW_COVER)
-float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh0, inout float2 uv, float snowDispScale, float3 p, float skylight, float3 viewPos)
+float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh0, inout float2 uv, float snowDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	if(snowCoverSettings.Sky < 3) // 3 = exterior
 		return 0;
@@ -117,7 +117,8 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 
 	float parallax = 0.1 * snowCoverSettings.ParallaxScale * (SnowParallax.Sample(SampColorSampler, snowCoverSettings.UVScale * p.xy / 100).x - 0.5);
 	float env_mult = GetEnvironmentalMultiplier(p) + parallax + sh0 * snowDispScale;
-	float mult = smoothstep(0, 1, saturate(pow(worldNormal.z, 2))) * skylight * smoothstep(0, 1, saturate(env_mult));
+	waterDist = smoothstep(-32, 8, -waterDist);
+	float mult = smoothstep(0, 1, pow(worldNormal.z, 2)-waterDist) * skylight * smoothstep(0, 1, env_mult-waterDist); //-smoothstep(-32, 8, -waterDist)
 	uv = snowCoverSettings.UVScale * p.xy / 100 + parallax * viewPos.xy;
 #if defined(TREE_ANIM)
 	if (snowCoverSettings.AffectFoliageColor) {
@@ -138,10 +139,10 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 }
 
 #	if defined(TRUE_PBR)
-void ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::SurfaceProperties prop, inout float sh0, float snowDispScale, float3 p, float skylight, float3 viewPos)
+void ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::SurfaceProperties prop, inout float sh0, float snowDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	float2 uv;
-	float mult = ApplySnowBase(color, worldNormal, sh0, uv, snowDispScale, p, skylight, viewPos);
+	float mult = ApplySnowBase(color, worldNormal, sh0, uv, snowDispScale, p, skylight, waterDist, viewPos);
 	if(mult <= 0.0)
 		return;
 	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
@@ -161,11 +162,11 @@ void ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::Surfa
 }
 #	else
 
-void ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float snowDispScale, float3 p, float skylight, float3 viewPos)
+void ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float snowDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	float2 uv;
 	//color = sRGB2Lin(color);
-	float mult = ApplySnowBase(color, worldNormal, sh0, uv, snowDispScale, p, skylight, viewPos);
+	float mult = ApplySnowBase(color, worldNormal, sh0, uv, snowDispScale, p, skylight, waterDist, viewPos);
 	if(mult <= 0.0)
 		return;
 	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;

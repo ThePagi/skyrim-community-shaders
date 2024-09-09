@@ -1780,13 +1780,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // defined (HAIR)
 	baseColor.rgb *= vertexColor;
 
+
+
 #	if defined(SKYLIGHTING)
-	float occlusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
+	float snowOcclusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
 #	else
-	float occlusion = inWorld ? 1 : 0;
+	float snowOcclusion = inWorld ? 1 : 0;
 #	endif
 
-
+	float4 waterData = GetWaterData(input.WorldPosition.xyz);
+	float waterHeight = waterData.w;
 
 #	if defined(SNOW_COVER)
 #		if !defined(MODELSPACENORMALS)
@@ -1796,7 +1799,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float3 viewDirTS = 0;
 #		endif
 	float snowDispScale = 1.0;
-
+	float3 pos = (input.WorldPosition + CameraPosAdjust[eyeIndex]).xyz;
 #		if defined(TRUE_PBR)
 #			if defined(LANDSCAPE)
 	snowDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
@@ -1808,12 +1811,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 	//float3 pos = float3(diffuseUv.x, diffuseUv.y, 0);
-	float3 pos = (input.WorldPosition + CameraPosAdjust[eyeIndex]).xyz;
 	if (snowCoverSettings.EnableSnowCover)
 #			if defined(TRUE_PBR)
-		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, snowDispScale, pos, occlusion, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, snowDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 #			else
-		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, snowDispScale, pos, occlusion, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, snowDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 	glossiness = glossiness.xxxx;
 #			endif
 
@@ -1826,8 +1828,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	modelNormal.xyz = normalize(modelNormal.xyz);
 #	endif
 
-	float4 waterData = GetWaterData(input.WorldPosition.xyz);
-	float waterHeight = waterData.w;
+	
 
 	float waterRoughnessSpecular = 1;
 

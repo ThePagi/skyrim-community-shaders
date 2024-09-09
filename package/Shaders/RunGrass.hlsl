@@ -491,13 +491,14 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	sh2 skylightingSH = Skylighting::sample(skylightingSettings, SkylightingProbeArray, positionMSSkylight, normal);
 
-	float occlusion = smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? normal : float3(0, 0, 1))));
+	float snowOcclusion = smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? normal : float3(0, 0, 1))));
 #			else
-	float occlusion = 1;
+	float snowOcclusion = 1;
 #			endif
 #			if defined(SNOW_COVER)
+	snowOcclusion *= saturate(input.WorldPosition.z - GetWaterData(input.WorldPosition.xyz).w);
 	if (snowCoverSettings.EnableSnowCover)
-		ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, occlusion);
+		ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, snowOcclusion);
 #			endif
 
 #			if defined(TRUE_PBR)
