@@ -1780,8 +1780,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // defined (HAIR)
 	baseColor.rgb *= vertexColor;
 
-
-
 #	if defined(SKYLIGHTING)
 	float snowOcclusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
 #	else
@@ -1803,8 +1801,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		if defined(TRUE_PBR)
 #			if defined(LANDSCAPE)
 	snowDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
-					max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
-					max(displacementParams[4].HeightScale * input.LandBlendWeights2.x, displacementParams[5].HeightScale * input.LandBlendWeights2.y)))));
+																						   max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
+																																								  max(displacementParams[4].HeightScale * input.LandBlendWeights2.x, displacementParams[5].HeightScale * input.LandBlendWeights2.y)))));
 #			else
 	snowDispScale = displacementParams.HeightScale;
 #			endif
@@ -1812,12 +1810,12 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	//float3 pos = float3(diffuseUv.x, diffuseUv.y, 0);
 	if (snowCoverSettings.EnableSnowCover)
-#			if defined(TRUE_PBR)
+#		if defined(TRUE_PBR)
 		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, snowDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
-#			else
+#		else
 		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, snowDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 	glossiness = glossiness.xxxx;
-#			endif
+#		endif
 
 #		if !defined(DRAW_IN_WORLDSPACE)  // && (defined(SKINNED) || !defined(MODELSPACENORMALS))
 	[flatten] if (!input.WorldSpace)
@@ -1827,8 +1825,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		modelNormal.xyz = worldSpaceNormal;
 	modelNormal.xyz = normalize(modelNormal.xyz);
 #	endif
-
-	
 
 	float waterRoughnessSpecular = 1;
 
