@@ -1,3 +1,4 @@
+#include "Common/Color.hlsli"
 #include "Common/Constants.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
@@ -5,7 +6,6 @@
 #include "Common/Random.hlsli"
 #include "Common/SharedData.hlsli"
 #include "Common/VR.hlsli"
-#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -220,10 +220,10 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 ddy = ddy_coarse(input.WorldPosition);
 	float3 normal = normalize(normalize(cross(ddx, ddy)) + float3(0, 0, 1));
 
-#			if defined(SNOW_COVER)
+#		if defined(SNOW_COVER)
 	if (snowCoverSettings.EnableSnowCover)
 		ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, 1);
-#			endif
+#		endif
 
 #		if defined(DEFERRED)
 	float3 viewPosition = mul(CameraView[eyeIndex], float4(input.WorldPosition.xyz, 1)).xyz;
@@ -252,8 +252,6 @@ PS_OUTPUT main(PS_INPUT input)
 #			endif
 
 	float3 diffuseColor = DirLightColorShared.xyz * dirShadow;
-
-
 
 #			if !defined(SSGI)
 	float3 directionalAmbientColor = mul(DirectionalAmbientShared, float4(normal, 1.0));
