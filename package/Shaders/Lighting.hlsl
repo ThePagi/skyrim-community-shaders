@@ -26,7 +26,7 @@
 #	define LOD
 #endif
 
-#if defined(SKINNED) || defined(SKIN) || defined(EYE)
+#if defined(SKINNED) || defined(SKIN) || defined(EYE) || !defined(EXTENDED_MATERIALS)
 #	undef SNOW_COVER
 #endif
 struct VS_INPUT
@@ -1079,7 +1079,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(LANDSCAPE)
 	float mipLevels[6];
-	float sh0 = 0.5;
+	float sh0 = 0;
 	float pixelOffset;
 
 #		if defined(EMAT)
@@ -1090,7 +1090,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #	else
 	float mipLevel;
-	float sh0 = 0.5;
+	float sh0 = 0;
 	float pixelOffset;
 
 #		if defined(EMAT)
@@ -1798,24 +1798,24 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		else
 	float3 viewDirTS = 0;
 #		endif
-	float snowDispScale = 1.0;
+	float underDispScale = 1.0;
 	float3 pos = (input.WorldPosition + CameraPosAdjust[eyeIndex]).xyz;
 #		if defined(TRUE_PBR)
 #			if defined(LANDSCAPE)
-	snowDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
+	underDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
 					max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
 					max(displacementParams[4].HeightScale * input.LandBlendWeights2.x, displacementParams[5].HeightScale * input.LandBlendWeights2.y)))));
 #			else
-	snowDispScale = displacementParams.HeightScale;
+	underDispScale = displacementParams.HeightScale;
 #			endif
 #		endif
 
 	//float3 pos = float3(diffuseUv.x, diffuseUv.y, 0);
 	if (snowCoverSettings.EnableSnowCover)
 #			if defined(TRUE_PBR)
-		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, snowDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 #			else
-		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, snowDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 	glossiness = glossiness.xxxx;
 #			endif
 
