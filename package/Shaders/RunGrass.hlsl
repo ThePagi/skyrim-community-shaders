@@ -398,13 +398,13 @@ cbuffer PerMaterial : register(b1)
 #			include "Common/PBR.hlsli"
 #		endif
 
-#	if defined(SNOW_COVER)
-#		undef SNOW
-#		undef PROJECTED_UV
-#		undef SPARKLE
-#		define BASIC_SNOW_COVER
-#		include "SnowCover/SnowCover.hlsli"
-#	endif
+#		if defined(SNOW_COVER)
+#			undef SNOW
+#			undef PROJECTED_UV
+#			undef SPARKLE
+#			define BASIC_SNOW_COVER
+#			include "SnowCover/SnowCover.hlsli"
+#		endif
 
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
@@ -483,11 +483,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			endif  // !TRUE_PBR
 
 #			if defined(SKYLIGHTING)
-#						if defined(VR)
+#				if defined(VR)
 	float3 positionMSSkylight = input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz - CameraPosAdjust[0].xyz;
-#						else
+#				else
 	float3 positionMSSkylight = input.WorldPosition.xyz;
-#						endif
+#				endif
 
 	sh2 skylightingSH = Skylighting::sample(skylightingSettings, SkylightingProbeArray, positionMSSkylight, normal);
 
@@ -654,7 +654,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #				if !defined(SSGI)
 	float3 directionalAmbientColor = mul(DirectionalAmbientShared, float4(normal, 1.0));
-
 
 #					if defined(SKYLIGHTING)
 	float skylighting = shFuncProductIntegral(skylightingSH, shEvaluateCosineLobe(skylightingSettings.DirectionalDiffuse ? normal : float3(0, 0, 1))) / shPI;
