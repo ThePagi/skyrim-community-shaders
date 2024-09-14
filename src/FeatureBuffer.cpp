@@ -6,7 +6,6 @@
 #include "Features/LightLimitFix.h"
 #include "Features/Skylighting.h"
 #include "Features/SnowCover.h"
-#include "Features/TerrainOcclusion.h"
 #include "Features/TerrainShadows.h"
 #include "Features/WetnessEffects.h"
 
