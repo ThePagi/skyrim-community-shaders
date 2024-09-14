@@ -52,22 +52,10 @@ struct CubemapCreatorSettings
 
 struct TerraOccSettings
 {
-	uint EnableTerrainShadow;
-	uint EnableTerrainAO;
-	float HeightBias;
-	float ShadowSofteningRadiusAngle;
-
-	float2 ZRange;
-	float2 ShadowFadeDistance;
-
-	float AOMix;
+	bool EnableTerrainShadow;
 	float3 Scale;
-
-	float AOPower;
-	float3 InvScale;
-
-	float AOFadeOutHeightRcp;
-	float3 Offset;
+	float2 ZRange;
+	float2 Offset;
 };
 
 struct WetnessEffectsSettings
@@ -130,11 +118,9 @@ struct SkylightingSettings
 	uint3 ArrayOrigin;  // xyz: array origin, w: max accum frames
 	uint pad1;
 	int4 ValidMargin;
-
-	float4 MixParams;  // x: min diffuse visibility, y: diffuse mult, z: min specular visibility, w: specular mult
-
-	uint DirectionalDiffuse;
-	uint3 pad2;
+	float MinDiffuseVisibility;
+	float MinSpecularVisibility;
+	uint pad2[2];
 };
 
 struct SnowCoverSettings

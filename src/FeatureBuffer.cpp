@@ -7,6 +7,7 @@
 #include "Features/Skylighting.h"
 #include "Features/SnowCover.h"
 #include "Features/TerrainOcclusion.h"
+#include "Features/TerrainShadows.h"
 #include "Features/WetnessEffects.h"
 
 #include "TruePBR.h"
@@ -33,7 +34,7 @@ std::pair<unsigned char*, size_t> GetFeatureBufferData()
 		GrassLighting::GetSingleton()->settings,
 		ExtendedMaterials::GetSingleton()->settings,
 		DynamicCubemaps::GetSingleton()->settings,
-		TerrainOcclusion::GetSingleton()->GetCommonBufferData(),
+		TerrainShadows::GetSingleton()->GetCommonBufferData(),
 		WetnessEffects::GetSingleton()->GetCommonBufferData(),
 		LightLimitFix::GetSingleton()->GetCommonBufferData(),
 		Skylighting::GetSingleton()->cbData,
