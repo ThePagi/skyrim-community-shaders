@@ -163,8 +163,8 @@ cbuffer FeatureData : register(b6)
 	WetnessEffectsSettings wetnessEffectsSettings;
 	LightLimitFixSettings lightLimitFixSettings;
 	SkylightingSettings skylightingSettings;
-	SnowCoverSettings snowCoverSettings;
 	PBRSettings pbrSettings;
+	SnowCoverSettings snowCoverSettings;
 };
 
 Texture2D<float4> TexDepthSampler : register(t20);

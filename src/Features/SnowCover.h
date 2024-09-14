@@ -24,16 +24,16 @@ public:
 	{
 		uint EnableSnowCover = true;
 		uint AffectFoliageColor = true;
-		float SnowHeightOffset = 0;
-		float FoliageHeightOffset = -512;
+		float SnowHeightOffset = 0.0f;
+		float FoliageHeightOffset = -512.0f;
 
 		uint MaxSummerMonth = 6;
 		uint MaxWinterMonth = 0;
-		float SummerHeightOffset = 0;
-		float WinterHeightOffset = -10000;
+		float SummerHeightOffset = 0.0f;
+		float WinterHeightOffset = -10000.0f;
 
 		float UVScale = 1;
-		float ParallaxScale = 0.1;
+		float ParallaxScale = 0.1f;
 		uint pad[2];
 		//glint
 		float screenSpaceScale = 1.2f;
