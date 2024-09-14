@@ -491,7 +491,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	sh2 skylightingSH = Skylighting::sample(skylightingSettings, SkylightingProbeArray, positionMSSkylight, normal);
 
-	float snowOcclusion = smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? normal : float3(0, 0, 1))));
+	float snowOcclusion = smoothstep(0, 1, (shUnproject(skylightingSH, float3(0, 0, 1))));
 #			else
 	float snowOcclusion = 1;
 #			endif

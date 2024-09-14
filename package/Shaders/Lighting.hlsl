@@ -1781,7 +1781,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	baseColor.rgb *= vertexColor;
 
 #	if defined(SKYLIGHTING)
-	float snowOcclusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, skylightingSettings.DirectionalDiffuse ? worldSpaceNormal : float3(0, 0, 1)))) : 0;
+	float snowOcclusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, float3(0, 0, 1)))) : 0;
 #	else
 	float snowOcclusion = inWorld ? 1 : 0;
 #	endif
