@@ -1779,7 +1779,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // defined (HAIR)
 	baseColor.rgb *= vertexColor;
 
-
 #	if defined(LIGHT_LIMIT_FIX)
 	uint numClusteredLights = 0;
 	uint totalLightCount = strictLights[0].NumStrictLights;
@@ -1802,9 +1801,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float snowOcclusion = inWorld ? 1 : 0;
 #		endif
 
-#if defined(LODLANDNOISE)
+#		if defined(LODLANDNOISE)
 	//snowOcclusion *= 0.8 + noise*0.2;
-#endif
+#		endif
 
 #		if defined(LIGHT_LIMIT_FIX)
 	[loop] for (uint lightIndex = 0; lightIndex < totalLightCount; lightIndex++)
@@ -1858,14 +1857,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 // blend lod blend color to snow color
 #		if defined(LOD_LAND_BLEND)
-#			if defined(TRUE_PBR) 
-		// convert linear pbr color to vanilla, ugly but works
-		lodLandColor.rgb = lerp(lodLandColor.rgb, LinearToGamma(baseColor.xyz), snowFactor);
+#			if defined(TRUE_PBR)
+	// convert linear pbr color to vanilla, ugly but works
+	lodLandColor.rgb = lerp(lodLandColor.rgb, LinearToGamma(baseColor.xyz), snowFactor);
 #			else
-		lodLandColor.rgb = lerp(lodLandColor.rgb, baseColor.xyz, snowFactor);
+	lodLandColor.rgb = lerp(lodLandColor.rgb, baseColor.xyz, snowFactor);
 #			endif
 #		endif
-
 
 #		if !defined(DRAW_IN_WORLDSPACE)  // && (defined(SKINNED) || !defined(MODELSPACENORMALS))
 	[flatten] if (!input.WorldSpace)
@@ -2200,8 +2198,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	input.TBN1.z = worldSpaceVertexNormal[1];
 	input.TBN2.z = worldSpaceVertexNormal[2];
 #			endif
-
-	
 
 	uint contactShadowSteps = round(4.0 * (1.0 - saturate(viewPosition.z / 1024.0)));
 

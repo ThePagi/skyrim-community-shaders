@@ -159,7 +159,7 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 								// If it was raining, wait to transition until precipitation ends, otherwise use the current weather's fade in
 								if (lastWeather->precipitationData && lastWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kRainy)) {
 									float particleDensity = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kParticleDensity)].f;
-									float particleGravity  = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kGravityVelocity)].f;
+									float particleGravity = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kGravityVelocity)].f;
 									lastWeatherSnowing = std::clamp(((particleDensity * particleGravity) / AVERAGE_RAIN_VOLUME), MIN_RAINDROP_CHANCE_MULTIPLIER, MAX_RAINDROP_CHANCE_MULTIPLIER);
 									weatherTransitionPercentage = CalculateWeatherTransitionPercentage(sky->currentWeatherPct, lastWeather->data.precipitationEndFadeOut, false);
 								} else {
@@ -208,7 +208,6 @@ void SnowCover::SetupResources()
 	hr = DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_p.dds", nullptr, &views.at(3));
 	if (hr != S_OK)
 		logger::warn("Snow Cover: Error loading parallax texture: {}", hr);
-
 }
 
 void SnowCover::Prepass()
