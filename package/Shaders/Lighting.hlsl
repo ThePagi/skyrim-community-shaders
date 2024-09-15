@@ -26,7 +26,7 @@
 #	define LOD
 #endif
 
-#if defined(SKINNED) || defined(SKIN) || defined(EYE) || !defined(EXTENDED_MATERIALS)
+#if defined(SKINNED) || defined(SKIN) || defined(EYE) || defined(HAIR) || !defined(EXTENDED_MATERIALS)
 #	undef SNOW_COVER
 #endif
 struct VS_INPUT
@@ -959,7 +959,7 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 
 #	if defined(TRUE_PBR)
 #		if defined(SNOW_COVER)
-#			define GLINT
+#			undef GLINT
 #		endif
 #		include "Common/PBR.hlsli"
 #	endif
@@ -1009,7 +1009,6 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 
 #	if defined(SNOW_COVER)
 #		undef SNOW
-#		undef PROJECTED_UV
 #		undef SPARKLE
 #		include "SnowCover/SnowCover.hlsli"
 #	endif
@@ -1780,16 +1779,55 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // defined (HAIR)
 	baseColor.rgb *= vertexColor;
 
-#	if defined(SKYLIGHTING)
-	float snowOcclusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, float3(0, 0, 1)))) : 0;
-#	else
-	float snowOcclusion = inWorld ? 1 : 0;
+
+#	if defined(LIGHT_LIMIT_FIX)
+	uint numClusteredLights = 0;
+	uint totalLightCount = strictLights[0].NumStrictLights;
+	uint clusterIndex = 0;
+	uint lightOffset = 0;
+	if (inWorld && LightLimitFix::GetClusterIndex(screenUV, viewPosition.z, clusterIndex)) {
+		numClusteredLights = lightGrid[clusterIndex].lightCount;
+		totalLightCount += numClusteredLights;
+		lightOffset = lightGrid[clusterIndex].offset;
+	}
 #	endif
 
 	float4 waterData = GetWaterData(input.WorldPosition.xyz);
 	float waterHeight = waterData.w;
 
 #	if defined(SNOW_COVER)
+#		if defined(SKYLIGHTING)
+	float snowOcclusion = inWorld ? smoothstep(0, 1, (shUnproject(skylightingSH, float3(0, 0, 1)))) : 0;
+#		else
+	float snowOcclusion = inWorld ? 1 : 0;
+#		endif
+
+#if defined(LODLANDNOISE)
+	//snowOcclusion *= 0.8 + noise*0.2;
+#endif
+
+#		if defined(LIGHT_LIMIT_FIX)
+	[loop] for (uint lightIndex = 0; lightIndex < totalLightCount; lightIndex++)
+	{
+		StructuredLight light;
+		if (lightIndex < strictLights[0].NumStrictLights) {
+			light = strictLights[0].StrictLights[lightIndex];
+		} else {
+			uint clusterIndex = lightList[lightOffset + (lightIndex - strictLights[0].NumStrictLights)];
+			light = lights[clusterIndex];
+		}
+		float3 lightDirection = light.positionWS[eyeIndex].xyz - input.WorldPosition.xyz;
+		float lightDist = dot(lightDirection, lightDirection);
+		snowOcclusion *= smoothstep(0, 25000, lightDist);
+	}
+#		else
+	[loop] for (uint lightIndex = 0; lightIndex < numShadowLights; lightIndex++)
+	{
+		float3 lightDirection = PointLightPosition[eyeIndex * numLights + lightIndex].xyz - input.InputPosition.xyz;
+		float lightDist = dot(lightDirection, lightDirection);
+		snowOcclusion *= smoothstep(0, 50000, lightDist);
+	}
+#		endif
 #		if !defined(MODELSPACENORMALS)
 	float3 viewDirTS = normalize(mul(tbnTr, viewDirection));
 	viewDirTS.xy /= viewDirTS.z * 0.7 + 0.3;  // Fix for objects at extreme viewing angles
@@ -1809,13 +1847,25 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 	//float3 pos = float3(diffuseUv.x, diffuseUv.y, 0);
+	float snowFactor = 0;
 	if (snowCoverSettings.EnableSnowCover)
 #		if defined(TRUE_PBR)
-		ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		snowFactor = ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 #		else
-		ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		snowFactor = ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 	glossiness = glossiness.xxxx;
 #		endif
+
+// blend lod blend color to snow color
+#		if defined(LOD_LAND_BLEND)
+#			if defined(TRUE_PBR) 
+		// convert linear pbr color to vanilla, ugly but works
+		lodLandColor.rgb = lerp(lodLandColor.rgb, LinearToGamma(baseColor.xyz), snowFactor);
+#			else
+		lodLandColor.rgb = lerp(lodLandColor.rgb, baseColor.xyz, snowFactor);
+#			endif
+#		endif
+
 
 #		if !defined(DRAW_IN_WORLDSPACE)  // && (defined(SKINNED) || !defined(MODELSPACENORMALS))
 	[flatten] if (!input.WorldSpace)
@@ -2151,15 +2201,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	input.TBN2.z = worldSpaceVertexNormal[2];
 #			endif
 
-	uint numClusteredLights = 0;
-	uint totalLightCount = strictLights[0].NumStrictLights;
-	uint clusterIndex = 0;
-	uint lightOffset = 0;
-	if (inWorld && LightLimitFix::GetClusterIndex(screenUV, viewPosition.z, clusterIndex)) {
-		numClusteredLights = lightGrid[clusterIndex].lightCount;
-		totalLightCount += numClusteredLights;
-		lightOffset = lightGrid[clusterIndex].offset;
-	}
+	
 
 	uint contactShadowSteps = round(4.0 * (1.0 - saturate(viewPosition.z / 1024.0)));
 

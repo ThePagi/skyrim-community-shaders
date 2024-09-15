@@ -137,12 +137,12 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 }
 
 #		if defined(TRUE_PBR)
-void ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::SurfaceProperties prop, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
+float ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::SurfaceProperties prop, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	float2 uv;
 	float mult = ApplySnowBase(color, worldNormal, sh0, uv, underDispScale, p, skylight, waterDist, viewPos);
 	if (mult <= 0.0)
-		return;
+		return 0;
 	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
 	color = lerp(color, diffuse, mult);
 	float3 normal = TransformNormal(SnowNormal.Sample(SampNormalSampler, uv).rgb);
@@ -157,16 +157,17 @@ void ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::Surfa
 	prop.GlintLogMicrofacetDensity = lerp(prop.GlintLogMicrofacetDensity, snowCoverSettings.Glint.y, mult);
 	prop.GlintMicrofacetRoughness = lerp(prop.GlintMicrofacetRoughness, snowCoverSettings.Glint.z, mult);
 	prop.GlintDensityRandomization = lerp(prop.GlintDensityRandomization, snowCoverSettings.Glint.w, mult);
+	return mult;
 }
 #		else
 
-void ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
+float ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	float2 uv;
 	//color = sRGB2Lin(color);
 	float mult = ApplySnowBase(color, worldNormal, sh0, uv, underDispScale, p, skylight, waterDist, viewPos);
 	if (mult <= 0.0)
-		return;
+		return 0;
 	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
 	diffuse = pow(LinearToGamma(diffuse) / PI, 1 / 1.5);
 	float4 rmaos = SnowRMAOS.Sample(SampColorSampler, uv);
@@ -178,6 +179,7 @@ void ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossin
 	worldNormal = normalize(lerp(worldNormal, normal, mult));
 	//glossiness = lerp(glossiness, 0.5 * pow(v * s, 3.0), mult);
 	//shininess = lerp(shininess, max(1, pow(1 - v, 3.0) * 100), mult);
+	return mult;
 }
 #		endif
 #	endif

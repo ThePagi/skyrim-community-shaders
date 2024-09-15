@@ -61,8 +61,7 @@ public:
 	std::array<ID3D11ShaderResourceView*, 4> views;
 
 	bool requiresUpdate = true;
-	float wetnessDepth = 0.0f;
-	float puddleDepth = 0.0f;
+	float snowDepth = 0.0f;
 	float lastGameTimeValue = 0.0f;
 	uint32_t currentWeatherID = 0;
 	uint32_t lastWeatherID = 0;
@@ -81,7 +80,7 @@ public:
 
 	virtual void RestoreDefaultSettings();
 	float CalculateWeatherTransitionPercentage(float skyCurrentWeatherPct, float beginFade, bool fadeIn);
-	void CalculateWetness(RE::TESWeather* weather, RE::Sky* sky, float seconds, float& wetness, float& puddleWetness);
+	void CalculateWetness(RE::TESWeather* weather, RE::Sky* sky, float seconds, float& wetness);
 
 	virtual inline void PostPostLoad() override { Hooks::Install(); }
 

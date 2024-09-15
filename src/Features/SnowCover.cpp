@@ -81,7 +81,7 @@ float SnowCover::CalculateWeatherTransitionPercentage(float skyCurrentWeatherPct
 	return weatherTransitionPercentage;
 }
 
-void SnowCover::CalculateWetness(RE::TESWeather* weather, RE::Sky* sky, float seconds, float& weatherWetnessDepth, float& weatherPuddleDepth)
+void SnowCover::CalculateWetness(RE::TESWeather* weather, RE::Sky* sky, float seconds, float& weatherWetnessDepth)
 {
 	float wetnessDepthDelta = CLEAR_DAY_DELTA_PER_SECOND * WETNESS_SCALE * seconds;
 	float puddleDepthDelta = CLEAR_DAY_DELTA_PER_SECOND * PUDDLE_SCALE * seconds;
@@ -101,7 +101,6 @@ void SnowCover::CalculateWetness(RE::TESWeather* weather, RE::Sky* sky, float se
 	}
 
 	weatherWetnessDepth = wetnessDepthDelta > 0 ? std::min(weatherWetnessDepth + wetnessDepthDelta, MAX_WETNESS_DEPTH) : std::max(weatherWetnessDepth + wetnessDepthDelta, 0.0f);
-	weatherPuddleDepth = puddleDepthDelta > 0 ? std::min(weatherPuddleDepth + puddleDepthDelta, MAX_PUDDLE_DEPTH) : std::max(weatherPuddleDepth + puddleDepthDelta, 0.0f);
 }
 
 void SnowCover::Draw(const RE::BSShader*, const uint32_t)
@@ -115,8 +114,8 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 	currentWeatherID = 0;
 	uint32_t previousLastWeatherID = lastWeatherID;
 	lastWeatherID = 0;
-	float currentWeatherRaining = 0.0f;
-	float lastWeatherRaining = 0.0f;
+	float currentWeatherSnowing = 0.0f;
+	float lastWeatherSnowing = 0.0f;
 	float weatherTransitionPercentage = previousWeatherTransitionPercentage;
 
 	if (settings.EnableSnowCover) {
@@ -125,16 +124,15 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 			if (sky->mode.get() == RE::Sky::Mode::kFull) {
 				if (auto currentWeather = sky->currentWeather) {
 					if (currentWeather->precipitationData && currentWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kSnow)) {
-						float rainDensity = currentWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kParticleDensity)].f;
-						float rainGravity = currentWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kGravityVelocity)].f;
-						currentWeatherRaining = std::clamp(((rainDensity * rainGravity) / AVERAGE_RAIN_VOLUME), MIN_RAINDROP_CHANCE_MULTIPLIER, MAX_RAINDROP_CHANCE_MULTIPLIER);
+						float particleDensity = currentWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kParticleDensity)].f;
+						float particleGravity = currentWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kGravityVelocity)].f;
+						currentWeatherSnowing = std::clamp(((particleDensity * particleGravity) / AVERAGE_RAIN_VOLUME), MIN_RAINDROP_CHANCE_MULTIPLIER, MAX_RAINDROP_CHANCE_MULTIPLIER);
 					}
 					currentWeatherID = currentWeather->GetFormID();
 					if (auto calendar = RE::Calendar::GetSingleton()) {
 						auto time = calendar->GetTime();
 						data.Month = static_cast<float>(time.tm_mon + (time.tm_mday + (time.tm_hour + (time.tm_min + time.tm_sec / 61.0) / 60.0) / 24.0) / 32.0);
-						float currentWeatherWetnessDepth = wetnessDepth;
-						float currentWeatherPuddleDepth = puddleDepth;
+						float currentWeatherWetnessDepth = snowDepth;
 						float currentGameTime = calendar->GetCurrentGameTime() * SECONDS_IN_A_DAY;
 						lastGameTimeValue = lastGameTimeValue == 0 ? currentGameTime : lastGameTimeValue;
 						float seconds = currentGameTime - lastGameTimeValue;
@@ -144,28 +142,25 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 							// If too much time has passed, snap wetness depths to the current weather.
 							seconds = 0.0f;
 							currentWeatherWetnessDepth = 0.0f;
-							currentWeatherPuddleDepth = 0.0f;
 							weatherTransitionPercentage = DEFAULT_TRANSITION_PERCENTAGE;
-							CalculateWetness(currentWeather, sky, 1.0f, currentWeatherWetnessDepth, currentWeatherPuddleDepth);
-							wetnessDepth = currentWeatherWetnessDepth > 0 ? MAX_WETNESS_DEPTH : 0.0f;
-							puddleDepth = currentWeatherPuddleDepth > 0 ? MAX_PUDDLE_DEPTH : 0.0f;
+							CalculateWetness(currentWeather, sky, 1.0f, currentWeatherWetnessDepth);
+							snowDepth = currentWeatherWetnessDepth > 0 ? MAX_WETNESS_DEPTH : 0.0f;
 						}
 
-						if (seconds > 0 || (seconds < 0 && (wetnessDepth > 0 || puddleDepth > 0))) {
+						if (seconds > 0 || (seconds < 0 && snowDepth > 0)) {
 							weatherTransitionPercentage = DEFAULT_TRANSITION_PERCENTAGE;
-							float lastWeatherWetnessDepth = wetnessDepth;
-							float lastWeatherPuddleDepth = puddleDepth;
+							float lastWeatherWetnessDepth = snowDepth;
 							seconds *= MIN_WEATHER_TRANSITION_SPEED + (MAX_WEATHER_TRANSITION_SPEED - MIN_WEATHER_TRANSITION_SPEED) / 2.0f;
-							CalculateWetness(currentWeather, sky, seconds, currentWeatherWetnessDepth, currentWeatherPuddleDepth);
+							CalculateWetness(currentWeather, sky, seconds, currentWeatherWetnessDepth);
 							// If there is a lastWeather, figure out what type it is and set the wetness
 							if (auto lastWeather = sky->lastWeather) {
 								lastWeatherID = lastWeather->GetFormID();
-								CalculateWetness(lastWeather, sky, seconds, lastWeatherWetnessDepth, lastWeatherPuddleDepth);
+								CalculateWetness(lastWeather, sky, seconds, lastWeatherWetnessDepth);
 								// If it was raining, wait to transition until precipitation ends, otherwise use the current weather's fade in
 								if (lastWeather->precipitationData && lastWeather->data.flags.any(RE::TESWeather::WeatherDataFlag::kRainy)) {
-									float rainDensity = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kParticleDensity)].f;
-									float rainGravity = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kGravityVelocity)].f;
-									lastWeatherRaining = std::clamp(((rainDensity * rainGravity) / AVERAGE_RAIN_VOLUME), MIN_RAINDROP_CHANCE_MULTIPLIER, MAX_RAINDROP_CHANCE_MULTIPLIER);
+									float particleDensity = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kParticleDensity)].f;
+									float particleGravity  = lastWeather->precipitationData->data[static_cast<int>(RE::BGSShaderParticleGeometryData::DataID::kGravityVelocity)].f;
+									lastWeatherSnowing = std::clamp(((particleDensity * particleGravity) / AVERAGE_RAIN_VOLUME), MIN_RAINDROP_CHANCE_MULTIPLIER, MAX_RAINDROP_CHANCE_MULTIPLIER);
 									weatherTransitionPercentage = CalculateWeatherTransitionPercentage(sky->currentWeatherPct, lastWeather->data.precipitationEndFadeOut, false);
 								} else {
 									weatherTransitionPercentage = CalculateWeatherTransitionPercentage(sky->currentWeatherPct, currentWeather->data.precipitationBeginFadeIn, true);
@@ -173,14 +168,13 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 							}
 
 							// Transition between CurrentWeather and LastWeather depth values
-							wetnessDepth = std::lerp(lastWeatherWetnessDepth, currentWeatherWetnessDepth, weatherTransitionPercentage);
-							puddleDepth = std::lerp(lastWeatherPuddleDepth, currentWeatherPuddleDepth, weatherTransitionPercentage);
+							snowDepth = std::lerp(lastWeatherWetnessDepth, currentWeatherWetnessDepth, weatherTransitionPercentage);
 						} else {
 							lastWeatherID = previousLastWeatherID;
 						}
 
 						// Calculate the wetness value from the water depth
-						data.SnowAmount = std::min(wetnessDepth, MAX_WETNESS);
+						data.SnowAmount = std::min(snowDepth, MAX_WETNESS);
 						previousWeatherTransitionPercentage = weatherTransitionPercentage;
 					}
 				}
@@ -188,10 +182,10 @@ SnowCover::PerFrame SnowCover::GetCommonBufferData()
 		}
 	}
 
-	static size_t rainTimer = 0;                                       // size_t for precision
+	static size_t snowTimer = 0;                                       // size_t for precision
 	if (!RE::UI::GetSingleton()->GameIsPaused())                       // from lightlimitfix
-		rainTimer += (size_t)(RE::GetSecondsSinceLastFrame() * 1000);  // BSTimer::delta is always 0 for some reason
-	data.TimeSnowing = rainTimer / 1000.f;
+		snowTimer += (size_t)(RE::GetSecondsSinceLastFrame() * 1000);  // BSTimer::delta is always 0 for some reason
+	data.TimeSnowing = snowTimer / 1000.f;
 
 	data.settings = settings;
 
@@ -202,10 +196,19 @@ void SnowCover::SetupResources()
 {
 	auto& device = State::GetSingleton()->device;
 	auto& context = State::GetSingleton()->context;
-	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow.dds", nullptr, &views.at(0));
-	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_n.dds", nullptr, &views.at(1));
-	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_rmaos.dds", nullptr, &views.at(2));
-	DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_p.dds", nullptr, &views.at(3));
+	HRESULT hr = DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow.dds", nullptr, &views.at(0));
+	if (hr != S_OK)
+		logger::warn("Snow Cover: Error loading diffuse texture: {}", hr);
+	hr = DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_n.dds", nullptr, &views.at(1));
+	if (hr != S_OK)
+		logger::warn("Snow Cover: Error loading normal texture: {}", hr);
+	hr = DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_rmaos.dds", nullptr, &views.at(2));
+	if (hr != S_OK)
+		logger::warn("Snow Cover: Error loading RMAOS texture: {}", hr);
+	hr = DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\SnowCover\\snow_p.dds", nullptr, &views.at(3));
+	if (hr != S_OK)
+		logger::warn("Snow Cover: Error loading parallax texture: {}", hr);
+
 }
 
 void SnowCover::Prepass()
