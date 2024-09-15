@@ -96,6 +96,7 @@ struct WetnessEffectsSettings
 	float ChaoticRippleStrength;
 	float ChaoticRippleScaleRcp;
 	float ChaoticRippleSpeed;
+	uint2 pad;
 };
 
 struct LightLimitFixSettings
@@ -156,6 +157,7 @@ struct PBRSettings
 
 cbuffer FeatureData : register(b6)
 {
+	SnowCoverSettings snowCoverSettings;
 	GrassLightingSettings grassLightingSettings;
 	CPMSettings extendedMaterialSettings;
 	CubemapCreatorSettings cubemapCreatorSettings;
@@ -164,7 +166,6 @@ cbuffer FeatureData : register(b6)
 	LightLimitFixSettings lightLimitFixSettings;
 	SkylightingSettings skylightingSettings;
 	PBRSettings pbrSettings;
-	SnowCoverSettings snowCoverSettings;
 };
 
 Texture2D<float4> TexDepthSampler : register(t20);

@@ -53,7 +53,10 @@ public:
 		float ChaoticRippleStrength = .1f;
 		float ChaoticRippleScale = 1.f;
 		float ChaoticRippleSpeed = 20.f;
+		uint pad0[2];
 	};
+
+	static_assert(sizeof(Settings) % 16 == 0);
 
 	struct alignas(16) PerFrame
 	{
@@ -62,8 +65,9 @@ public:
 		float Wetness;
 		float PuddleWetness;
 		Settings settings;
-		uint pad0[2];
 	};
+
+	static_assert(sizeof(PerFrame) % 16 == 0);
 
 	Settings settings;
 

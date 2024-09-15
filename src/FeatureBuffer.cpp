@@ -30,6 +30,7 @@ std::pair<unsigned char*, size_t> _GetFeatureBufferData(Ts... feat_datas)
 std::pair<unsigned char*, size_t> GetFeatureBufferData()
 {
 	return _GetFeatureBufferData(
+		SnowCover::GetSingleton()->GetCommonBufferData(),
 		GrassLighting::GetSingleton()->settings,
 		ExtendedMaterials::GetSingleton()->settings,
 		DynamicCubemaps::GetSingleton()->settings,
@@ -37,6 +38,5 @@ std::pair<unsigned char*, size_t> GetFeatureBufferData()
 		WetnessEffects::GetSingleton()->GetCommonBufferData(),
 		LightLimitFix::GetSingleton()->GetCommonBufferData(),
 		Skylighting::GetSingleton()->cbData,
-		TruePBR::GetSingleton()->settings,
-		SnowCover::GetSingleton()->GetCommonBufferData());
+		TruePBR::GetSingleton()->settings);
 }
