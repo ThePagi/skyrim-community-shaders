@@ -1009,7 +1009,7 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 
 #	if defined(SNOW_COVER)
 #		undef SNOW
-#		undef SPARKLE
+//#		undef SPARKLE
 #		include "SnowCover/SnowCover.hlsli"
 #	endif
 
@@ -1078,7 +1078,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(LANDSCAPE)
 	float mipLevels[6];
-	float sh0 = 0;
+	float sh0 = 0.5;
 	float pixelOffset;
 
 #		if defined(EMAT)
@@ -1089,7 +1089,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #	else
 	float mipLevel;
-	float sh0 = 0;
+	float sh0 = 0.5;
 	float pixelOffset;
 
 #		if defined(EMAT)
@@ -1503,21 +1503,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		baseColor += input.LandBlendWeights2.yyyy * landColor6;
 	}
 
-#		if defined(LOD_LAND_BLEND)
-	float4 lodLandColor = TexLandLodBlend1Sampler.Sample(SampLandLodBlend1Sampler, input.TexCoord0.zw);
-	float lodBlendParameter = GetLodLandBlendParameter(lodLandColor.xyz);
-	float lodBlendMask = TexLandLodBlend2Sampler.Sample(SampLandLodBlend2Sampler, 3.0.xx * input.TexCoord0.zw).x;
-	float lodLandFadeFactor = GetLodLandBlendMultiplier(lodBlendParameter, lodBlendMask);
-	float lodLandBlendFactor = LODTexParams.z * input.LandBlendWeights2.w;
 
-	normal.xyz = lerp(normal.xyz, float3(0, 0, 1), lodLandBlendFactor);
-
-#			if !defined(TRUE_PBR)
-	baseColor.w = 0;
-	baseColor = lerp(baseColor, lodLandColor * lodLandFadeFactor, lodLandBlendFactor);
-	glossiness = lerp(glossiness, 0, lodLandBlendFactor);
-#			endif
-#		endif  // LOD_LAND_BLEND
 
 #		if defined(SNOW) && !defined(TRUE_PBR)
 	useSnowSpecular = landSnowMask != 0.0;
@@ -1560,86 +1546,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		shadowColor = TexShadowMaskSampler.Sample(SampShadowMaskSampler, shadowUV);
 	}
 
-	float projectedMaterialWeight = 0;
 
-	float projWeight = 0;
-
-#	if defined(PROJECTED_UV)
-	float2 projNoiseUv = ProjectedUVParams.zz * input.TexCoord0.zw;
-	float projNoise = TexCharacterLightProjNoiseSampler.Sample(SampCharacterLightProjNoiseSampler, projNoiseUv).x;
-	float3 texProj = normalize(input.TexProj);
-#		if defined(TREE_ANIM) || defined(LODOBJECTSHD)
-	float vertexAlpha = 1;
-#		else
-	float vertexAlpha = input.Color.w;
-#		endif  // defined (TREE_ANIM) || defined (LODOBJECTSHD)
-	projWeight = -ProjectedUVParams.x * projNoise + (dot(modelNormal.xyz, texProj) * vertexAlpha - ProjectedUVParams.w);
-#		if defined(LODOBJECTSHD)
-	projWeight += (-0.5 + input.Color.w) * 2.5;
-#		endif  // LODOBJECTSHD
-#		if defined(SPARKLE)
-	if (projWeight < 0)
-		discard;
-
-	modelNormal.xyz = projectedNormal;
-#			if defined(SNOW)
-	psout.Parameters.y = 1;
-#			endif  // SNOW
-#		elif !defined(FACEGEN) && !defined(PARALLAX) && !defined(SPARKLE)
-	if (ProjectedUVParams3.w > 0.5) {
-		float2 projNormalDiffuseUv = ProjectedUVParams3.x * projNoiseUv;
-		float3 projNormal = TransformNormal(TexProjNormalSampler.Sample(SampProjNormalSampler, projNormalDiffuseUv).xyz);
-		float2 projDetailNormalUv = ProjectedUVParams3.y * projNoiseUv;
-		float3 projDetailNormal = TexProjDetail.Sample(SampProjDetailSampler, projDetailNormalUv).xyz;
-		float3 finalProjNormal = normalize(TransformNormal(projDetailNormal) * float3(1, 1, projNormal.z) + float3(projNormal.xy, 0));
-		float3 projBaseColor = TexProjDiffuseSampler.Sample(SampProjDiffuseSampler, projNormalDiffuseUv).xyz * ProjectedUVParams2.xyz;
-		projectedMaterialWeight = smoothstep(0, 1, 5 * (0.1 + projWeight));
-#			if defined(TRUE_PBR)
-		projBaseColor = saturate(EnvmapData.xyz * projBaseColor);
-		rawRMAOS.xyw = lerp(rawRMAOS.xyw, float3(ParallaxOccData.x, 0, ParallaxOccData.y), projectedMaterialWeight);
-		float4 projectedGlintParameters = 0;
-		if ((PBRFlags & TruePBR_ProjectedGlint) != 0) {
-			projectedGlintParameters = SparkleParams;
-		}
-		glintParameters = lerp(glintParameters, projectedGlintParameters, projectedMaterialWeight);
-#			endif
-		normal.xyz = lerp(normal.xyz, finalProjNormal, projectedMaterialWeight);
-		baseColor.xyz = lerp(baseColor.xyz, projBaseColor, projectedMaterialWeight);
-
-#			if defined(SNOW)
-		useSnowDecalSpecular = true;
-		psout.Parameters.y = GetSnowParameterY(projectedMaterialWeight, baseColor.w);
-#			endif  // SNOW
-	} else {
-		if (projWeight > 0) {
-			baseColor.xyz = ProjectedUVParams2.xyz;
-#			if defined(SNOW)
-			useSnowDecalSpecular = true;
-			psout.Parameters.y = GetSnowParameterY(projWeight, baseColor.w);
-#			endif  // SNOW
-		} else {
-#			if defined(SNOW)
-			psout.Parameters.y = 0;
-#			endif  // SNOW
-		}
-	}
-
-#			if defined(SPECULAR)
-	useSnowSpecular = useSnowDecalSpecular;
-#			endif  // SPECULAR
-#		endif      // SPARKLE
-
-#	elif defined(SNOW)
-#		if defined(LANDSCAPE)
-	psout.Parameters.y = landSnowMask;
-#		else
-	psout.Parameters.y = baseColor.w;
-#		endif  // LANDSCAPE
-#	endif
-
-#	if defined(WORLD_MAP)
-	baseColor.xyz = GetWorldMapBaseColor(rawBaseColor.xyz, baseColor.xyz, projWeight);
-#	endif  // WORLD_MAP
 
 	float3 worldSpaceNormal = modelNormal;
 
@@ -1681,7 +1588,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			pbrSurfaceProperties.SubsurfaceColor *= sampledSubsurfaceProperties.xyz;
 			pbrSurfaceProperties.Thickness *= sampledSubsurfaceProperties.w;
 		}
-		pbrSurfaceProperties.Thickness = lerp(pbrSurfaceProperties.Thickness, 1, projectedMaterialWeight);
 	}
 	else if ((PBRFlags & TruePBR_TwoLayer) != 0)
 	{
@@ -1717,7 +1623,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			}
 #			endif
 		}
-		pbrSurfaceProperties.CoatStrength = lerp(pbrSurfaceProperties.CoatStrength, 0, projectedMaterialWeight);
 	}
 
 	[branch] if ((PBRFlags & TruePBR_Fuzz) != 0)
@@ -1730,7 +1635,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			pbrSurfaceProperties.FuzzColor *= sampledFuzzProperties.xyz;
 			pbrSurfaceProperties.FuzzWeight *= sampledFuzzProperties.w;
 		}
-		pbrSurfaceProperties.FuzzWeight = lerp(pbrSurfaceProperties.FuzzWeight, 0, projectedMaterialWeight);
 	}
 #		endif
 
@@ -1802,7 +1706,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 #		if defined(LODLANDNOISE)
-	//snowOcclusion *= 0.8 + noise*0.2;
+	snowOcclusion *= 0.9 + noise*0.1;
 #		endif
 
 #		if defined(LIGHT_LIMIT_FIX)
@@ -1835,7 +1739,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 	float underDispScale = 1.0;
 	float3 pos = (input.WorldPosition + CameraPosAdjust[eyeIndex]).xyz;
-#		if defined(TRUE_PBR)
+#		if defined(TRUE_PBR) && defined(EMAT)
 #			if defined(LANDSCAPE)
 	underDispScale = max(displacementParams[0].HeightScale * input.LandBlendWeights1.x, max(displacementParams[1].HeightScale * input.LandBlendWeights1.y,
 																							max(displacementParams[2].HeightScale * input.LandBlendWeights1.z, max(displacementParams[3].HeightScale * input.LandBlendWeights1.w,
@@ -1847,23 +1751,41 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	//float3 pos = float3(diffuseUv.x, diffuseUv.y, 0);
 	float snowFactor = 0;
+	float3 snowDiffuse = baseColor.rgb;
 	if (snowCoverSettings.EnableSnowCover)
 #		if defined(TRUE_PBR)
-		snowFactor = ApplySnowPBR(baseColor.xyz, worldSpaceNormal, pbrSurfaceProperties, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		snowFactor = SnowCover::ApplySnowPBR(snowDiffuse, worldSpaceNormal, pbrSurfaceProperties, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 #		else
-		snowFactor = ApplySnow(baseColor.xyz, worldSpaceNormal, glossiness.x, shininess, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
+		snowFactor = SnowCover::ApplySnow(snowDiffuse, worldSpaceNormal, glossiness.x, shininess, sh0, underDispScale, pos, snowOcclusion, input.WorldPosition.z - waterHeight, float3(viewDirTS.x, viewDirTS.y, viewPosition.z));
 	glossiness = glossiness.xxxx;
 #		endif
 
-// blend lod blend color to snow color
-#		if defined(LOD_LAND_BLEND)
-#			if defined(TRUE_PBR)
-	// convert linear pbr color to vanilla, ugly but works
-	lodLandColor.rgb = lerp(lodLandColor.rgb, LinearToGamma(baseColor.xyz), snowFactor);
-#			else
-	lodLandColor.rgb = lerp(lodLandColor.rgb, baseColor.xyz, snowFactor);
-#			endif
+#		if defined(TREE_ANIM)
+		SnowCover::ApplyFoliageColor(baseColor.rgb, SnowCover::GetEnvironmentalMultiplier(pos));
 #		endif
+	baseColor.rgb = lerp(baseColor.rgb, snowDiffuse, snowFactor);
+
+#		if defined(LOD_LAND_BLEND)
+	float4 lodLandColor = TexLandLodBlend1Sampler.Sample(SampLandLodBlend1Sampler, input.TexCoord0.zw);
+#			if defined(TRUE_PBR)
+	// this should probably be converted from linear but it just works
+	lodLandColor.rgb = lerp(lodLandColor.rgb, snowDiffuse, snowFactor);
+#			else
+	lodLandColor.rgb = lerp(lodLandColor.rgb, snowDiffuse, snowFactor);
+#			endif
+	float lodBlendParameter = GetLodLandBlendParameter(lodLandColor.xyz);
+	float lodBlendMask = TexLandLodBlend2Sampler.Sample(SampLandLodBlend2Sampler, 3.0.xx * input.TexCoord0.zw).x;
+	float lodLandFadeFactor = GetLodLandBlendMultiplier(lodBlendParameter, lodBlendMask);
+	float lodLandBlendFactor = LODTexParams.z * input.LandBlendWeights2.w;
+	//lodLandBlendFactor = lerp(lodLandBlendFactor, 0, snowFactor);
+	normal.xyz = lerp(normal.xyz, float3(0, 0, 1), lodLandBlendFactor);
+
+#			if !defined(TRUE_PBR)
+	baseColor.w = 0;
+	baseColor = lerp(baseColor, lodLandColor * lodLandFadeFactor, lodLandBlendFactor);
+	glossiness = lerp(glossiness, 0, lodLandBlendFactor);
+#			endif
+#		endif  // LOD_LAND_BLEND
 
 #		if !defined(DRAW_IN_WORLDSPACE)  // && (defined(SKINNED) || !defined(MODELSPACENORMALS))
 	[flatten] if (!input.WorldSpace)
@@ -1872,10 +1794,96 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 		modelNormal.xyz = worldSpaceNormal;
 	modelNormal.xyz = normalize(modelNormal.xyz);
+#	endif // SNOW_COVER
+
+	float projectedMaterialWeight = 0;
+	float projWeight = 0;
+#	if defined(PROJECTED_UV)
+	float2 projNoiseUv = ProjectedUVParams.zz * input.TexCoord0.zw;
+	float projNoise = TexCharacterLightProjNoiseSampler.Sample(SampCharacterLightProjNoiseSampler, projNoiseUv).x;
+	float3 texProj = normalize(input.TexProj);
+#		if defined(TREE_ANIM) || defined(LODOBJECTSHD)
+	float vertexAlpha = 1;
+#		else
+	float vertexAlpha = input.Color.w;
+#		endif  // defined (TREE_ANIM) || defined (LODOBJECTSHD)
+	projWeight = -ProjectedUVParams.x * projNoise + (dot(modelNormal.xyz, texProj) * vertexAlpha - ProjectedUVParams.w);
+#		if defined(LODOBJECTSHD)
+	projWeight += (-0.5 + input.Color.w) * 2.5;
+#		endif  // LODOBJECTSHD
+#		if defined(SPARKLE)
+	if (projWeight < 0)
+		discard;
+
+	modelNormal.xyz = projectedNormal;
+#			if defined(SNOW)
+	psout.Parameters.y = 1;
+#			endif  // SNOW
+#		elif !defined(FACEGEN) && !defined(PARALLAX) && !defined(SPARKLE) && !defined(MULTI_LAYER_PARALLAX) && !defined(LANDSCAPE)
+	if (ProjectedUVParams3.w > 0.5) {
+		float2 projNormalDiffuseUv = ProjectedUVParams3.x * projNoiseUv;
+		float3 projNormal = TransformNormal(TexProjNormalSampler.Sample(SampProjNormalSampler, projNormalDiffuseUv).xyz);
+		float2 projDetailNormalUv = ProjectedUVParams3.y * projNoiseUv;
+		float3 projDetailNormal = TexProjDetail.Sample(SampProjDetailSampler, projDetailNormalUv).xyz;
+		float3 finalProjNormal = normalize(TransformNormal(projDetailNormal) * float3(1, 1, projNormal.z) + float3(projNormal.xy, 0));
+		float3 projBaseColor = TexProjDiffuseSampler.Sample(SampProjDiffuseSampler, projNormalDiffuseUv).xyz * ProjectedUVParams2.xyz;
+		projectedMaterialWeight = smoothstep(0, 1, 5 * (0.1 + projWeight));
+#			if defined(SNOW_COVER)
+		if(snowCoverSettings.EnableSnowCover)
+			projectedMaterialWeight *= saturate(1 - SnowCover::GetEnvironmentalMultiplier(pos));
+		
+#			endif
+#			if defined(TRUE_PBR)
+		pbrSurfaceProperties.Thickness = lerp(pbrSurfaceProperties.Thickness, 1, projectedMaterialWeight);
+		pbrSurfaceProperties.CoatStrength = lerp(pbrSurfaceProperties.CoatStrength, 0, projectedMaterialWeight);
+		pbrSurfaceProperties.FuzzWeight = lerp(pbrSurfaceProperties.FuzzWeight, 0, projectedMaterialWeight);
+		projBaseColor = saturate(EnvmapData.xyz * projBaseColor);
+		rawRMAOS.xyw = lerp(rawRMAOS.xyw, float3(ParallaxOccData.x, 0, ParallaxOccData.y), projectedMaterialWeight);
+		float4 projectedGlintParameters = 0;
+		if ((PBRFlags & TruePBR_ProjectedGlint) != 0) {
+			projectedGlintParameters = SparkleParams;
+		}
+		glintParameters = lerp(glintParameters, projectedGlintParameters, projectedMaterialWeight);
+#			endif
+		normal.xyz = lerp(normal.xyz, finalProjNormal, projectedMaterialWeight);
+		baseColor.xyz = lerp(baseColor.xyz, projBaseColor, projectedMaterialWeight);
+
+#			if defined(SNOW)
+		useSnowDecalSpecular = true;
+		psout.Parameters.y = GetSnowParameterY(projectedMaterialWeight, baseColor.w);
+#			endif  // SNOW
+	} else {
+		if (projWeight > 0) {
+			baseColor.xyz = ProjectedUVParams2.xyz;
+#			if defined(SNOW)
+			useSnowDecalSpecular = true;
+			psout.Parameters.y = GetSnowParameterY(projWeight, baseColor.w);
+#			endif  // SNOW
+		} else {
+#			if defined(SNOW)
+			psout.Parameters.y = 0;
+#			endif  // SNOW
+		}
+	}
+
+#			if defined(SPECULAR)
+	useSnowSpecular = useSnowDecalSpecular;
+#			endif  // SPECULAR
+#		endif      // SPARKLE
+
+#	elif defined(SNOW)
+#		if defined(LANDSCAPE)
+	psout.Parameters.y = landSnowMask;
+#		else
+	psout.Parameters.y = baseColor.w;
+#		endif  // LANDSCAPE
 #	endif
+#	if defined(WORLD_MAP)
+	baseColor.xyz = GetWorldMapBaseColor(rawBaseColor.xyz, baseColor.xyz, projWeight);
+#	endif  // WORLD_MAP
+
 
 	float waterRoughnessSpecular = 1;
-
 #	if defined(WETNESS_EFFECTS)
 	float wetness = 0.0;
 

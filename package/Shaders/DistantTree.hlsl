@@ -222,7 +222,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 #		if defined(SNOW_COVER)
 	if (snowCoverSettings.EnableSnowCover)
-		ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, 1);
+		SnowCover::ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, 1);
 #		endif
 
 #		if defined(DEFERRED)

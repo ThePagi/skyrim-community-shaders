@@ -498,7 +498,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			if defined(SNOW_COVER)
 	snowOcclusion *= saturate(input.WorldPosition.z - GetWaterData(input.WorldPosition.xyz).w);
 	if (snowCoverSettings.EnableSnowCover)
-		ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, snowOcclusion);
+		SnowCover::ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, snowOcclusion);
 #			endif
 
 #			if defined(TRUE_PBR)

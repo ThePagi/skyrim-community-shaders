@@ -1,6 +1,8 @@
 #include "Common/SharedData.hlsli"
 #if defined(PSHADER)
 
+namespace SnowCover{
+
 Texture2D<float4> SnowDiffuse : register(t73);
 Texture2D<float3> SnowNormal : register(t74);
 Texture2D<float4> SnowRMAOS : register(t75);
@@ -78,7 +80,18 @@ float GetEnvironmentalMultiplier(float3 p)
 			summerToWinter = 1 - summerToWinter;
 	}
 
-	return (GetHeightMult(p) - lerp(snowCoverSettings.SummerHeightOffset, snowCoverSettings.WinterHeightOffset, summerToWinter)) / 1000;
+	return (GetHeightMult(p) - lerp(snowCoverSettings.SummerHeightOffset, snowCoverSettings.WinterHeightOffset, summerToWinter)) / 10000;
+}
+
+void ApplyFoliageColor(inout float3 color, float env_mult){
+	float gmult = saturate(env_mult - snowCoverSettings.FoliageHeightOffset / 1000);
+	float3 hsv = RGBtoHSV(color);
+	if (hsv.x > 0.5625)
+		hsv.x = frac(lerp(hsv.x, 1.125, gmult));
+	else
+		hsv.x = lerp(hsv.x, 0.125, gmult);
+	//hsv.z = pow(hsv.z, 1+gmult*0.5);
+	color = HSVtoRGB(hsv);
 }
 
 void ApplySnowFoliage(inout float3 color, inout float3 worldNormal, float3 p, float skylight)
@@ -86,14 +99,7 @@ void ApplySnowFoliage(inout float3 color, inout float3 worldNormal, float3 p, fl
 	float env_mult = GetEnvironmentalMultiplier(p);
 	float mult = saturate(pow(abs(worldNormal.z), 1)) * saturate(env_mult) * skylight;
 	if (snowCoverSettings.AffectFoliageColor) {
-		float gmult = saturate(env_mult - snowCoverSettings.FoliageHeightOffset / 1000);
-		float3 hsv = RGBtoHSV(color);
-		if (hsv.x > 0.5625)
-			hsv.x = frac(lerp(hsv.x, 1.125, gmult));
-		else
-			hsv.x = lerp(hsv.x, 0.125, gmult);
-		//hsv.z = pow(hsv.z, 1+gmult*0.5);
-		color = HSVtoRGB(hsv);
+		ApplyFoliageColor(color, env_mult);
 	}
 	float2 uv = snowCoverSettings.UVScale * p.xy / 100;
 	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
@@ -102,8 +108,10 @@ void ApplySnowFoliage(inout float3 color, inout float3 worldNormal, float3 p, fl
 #	endif
 	color = lerp(color, diffuse, mult);
 }
+
+
 #	if !defined(BASIC_SNOW_COVER)
-float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh0, inout float2 uv, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
+float ApplySnowBase(inout float3 worldNormal, inout float sh0, inout float2 uv, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	if (snowCoverSettings.Sky < 3)  // 3 = exterior
 		return 0;
@@ -113,23 +121,17 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 #		else
 	float disp = sh0 - 0.5;
 #		endif
-	float parallax = 0.1 * snowCoverSettings.ParallaxScale * (SnowParallax.Sample(SampColorSampler, snowCoverSettings.UVScale * p.xy / 100).x - 0.5);
+	float raw_p = SnowParallax.Sample(SampColorSampler, snowCoverSettings.UVScale * p.xy / 1000).x;
+	float parallax = 0.1 * snowCoverSettings.ParallaxScale * (raw_p - 0.5);
 	float env_mult = GetEnvironmentalMultiplier(p) + parallax + disp * underDispScale * 0.1;
-	waterDist = smoothstep(-32, 8, -waterDist);
-	float mult = smoothstep(0, 1, pow(max(0, worldNormal.z), 2) - waterDist) * skylight * smoothstep(0, 1, env_mult - waterDist);  //-smoothstep(-32, 8, -waterDist)
+	waterDist = smoothstep(-64, 8, -waterDist);
+	float disp_factor = 0;
+#if defined(TRUE_PBR)
+	if(extendedMaterialSettings.ExtendShadows)
+		disp_factor = - disp * underDispScale;
+#endif //
+	float mult = skylight * (smoothstep(0.3, 0.5, (pow(max(0, worldNormal.z), 2)+disp_factor) *(max(0, env_mult - waterDist)*(0.5+0.5*raw_p + disp_factor) + snowCoverSettings.SnowAmount)));  //-smoothstep(-32, 8, -waterDist)
 	uv = snowCoverSettings.UVScale * p.xy / 100 + parallax * viewPos.xy;
-#		if defined(TREE_ANIM)
-	if (snowCoverSettings.AffectFoliageColor) {
-		float gmult = saturate(env_mult - snowCoverSettings.FoliageHeightOffset / 1000);
-		float3 hsv = RGBtoHSV(color);
-		if (hsv.x > 0.5625)
-			hsv.x = frac(lerp(hsv.x, 1.125, gmult));
-		else
-			hsv.x = lerp(hsv.x, 0.125, gmult);
-		//hsv.z = pow(hsv.z, 1+gmult*0.5);
-		color = HSVtoRGB(hsv);
-	}
-#		endif
 	if (mult < 0.01)
 		return 0;
 	sh0 = saturate(sh0 + mult * parallax);
@@ -137,14 +139,14 @@ float ApplySnowBase(inout float3 color, inout float3 worldNormal, inout float sh
 }
 
 #		if defined(TRUE_PBR)
-float ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::SurfaceProperties prop, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
+float ApplySnowPBR(inout float3 diffuse, inout float3 worldNormal, inout PBR::SurfaceProperties prop, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	float2 uv;
-	float mult = ApplySnowBase(color, worldNormal, sh0, uv, underDispScale, p, skylight, waterDist, viewPos);
+	float mult = ApplySnowBase(worldNormal, sh0, uv, underDispScale, p, skylight, waterDist, viewPos);
 	if (mult <= 0.0)
 		return 0;
-	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
-	color = lerp(color, diffuse, mult);
+	diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
+	//diffuse = frac(float3(uv.x, uv.y, 0));
 	float3 normal = TransformNormal(SnowNormal.Sample(SampNormalSampler, uv).rgb);
 	//worldNormal = normalize(lerp(worldNormal, MyReorientNormal(worldNormal, normal), mult));
 	worldNormal = normalize(lerp(worldNormal, normal, mult));
@@ -161,20 +163,20 @@ float ApplySnowPBR(inout float3 color, inout float3 worldNormal, inout PBR::Surf
 }
 #		else
 
-float ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
+float ApplySnow(inout float3 diffuse, inout float3 worldNormal, inout float glossiness, inout float shininess, inout float sh0, float underDispScale, float3 p, float skylight, float waterDist, float3 viewPos)
 {
 	float2 uv;
-	//color = sRGB2Lin(color);
-	float mult = ApplySnowBase(color, worldNormal, sh0, uv, underDispScale, p, skylight, waterDist, viewPos);
+	float mult = ApplySnowBase(worldNormal, sh0, uv, underDispScale, p, skylight, waterDist, viewPos);
 	if (mult <= 0.0)
 		return 0;
-	float3 diffuse = SnowDiffuse.Sample(SampColorSampler, uv).rgb;
-	diffuse = pow(LinearToGamma(diffuse) / PI, 1 / 1.5);
+	// apparently LOD landscape color sampler clamps uvs
+	diffuse = SnowDiffuse.Sample(SampColorSampler, frac(uv)).rgb;
+	//diffuse = frac(float3(uv.x, uv.y, 0));
+	diffuse = pow(LinearToGamma(diffuse) / PI, 1/1.5);
 	float4 rmaos = SnowRMAOS.Sample(SampColorSampler, uv);
 	glossiness = lerp(glossiness, 1 - rmaos.x, mult);  // yes these are named wrong not my fault bye
 	shininess = lerp(shininess, 25 * 500 * rmaos.w, mult);
 	diffuse *= rmaos.z;
-	color = lerp(color, diffuse, mult);
 	float3 normal = TransformNormal(SnowNormal.Sample(SampNormalSampler, uv).rgb);
 	worldNormal = normalize(lerp(worldNormal, normal, mult));
 	//glossiness = lerp(glossiness, 0.5 * pow(v * s, 3.0), mult);
@@ -183,4 +185,6 @@ float ApplySnow(inout float3 color, inout float3 worldNormal, inout float glossi
 }
 #		endif
 #	endif
+
+}
 #endif
