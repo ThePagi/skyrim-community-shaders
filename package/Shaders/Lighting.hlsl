@@ -1503,8 +1503,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		baseColor += input.LandBlendWeights2.yyyy * landColor6;
 	}
 
-
-
 #		if defined(SNOW) && !defined(TRUE_PBR)
 	useSnowSpecular = landSnowMask != 0.0;
 #		endif  // SNOW
@@ -1545,8 +1543,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		float2 shadowUV = GetDynamicResolutionAdjustedScreenPosition(adjustedShadowUV);
 		shadowColor = TexShadowMaskSampler.Sample(SampShadowMaskSampler, shadowUV);
 	}
-
-
 
 	float3 worldSpaceNormal = modelNormal;
 
@@ -1706,7 +1702,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 #		if defined(LODLANDNOISE)
-	snowOcclusion *= 0.9 + noise*0.1;
+	snowOcclusion *= 0.9 + noise * 0.1;
 #		endif
 
 #		if defined(LIGHT_LIMIT_FIX)
@@ -1761,7 +1757,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 #		if defined(TREE_ANIM)
-		SnowCover::ApplyFoliageColor(baseColor.rgb, SnowCover::GetEnvironmentalMultiplier(pos));
+	SnowCover::ApplyFoliageColor(baseColor.rgb, SnowCover::GetEnvironmentalMultiplier(pos));
 #		endif
 	baseColor.rgb = lerp(baseColor.rgb, snowDiffuse, snowFactor);
 
@@ -1794,7 +1790,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 		modelNormal.xyz = worldSpaceNormal;
 	modelNormal.xyz = normalize(modelNormal.xyz);
-#	endif // SNOW_COVER
+#	endif  // SNOW_COVER
 
 	float projectedMaterialWeight = 0;
 	float projWeight = 0;
@@ -1829,9 +1825,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		float3 projBaseColor = TexProjDiffuseSampler.Sample(SampProjDiffuseSampler, projNormalDiffuseUv).xyz * ProjectedUVParams2.xyz;
 		projectedMaterialWeight = smoothstep(0, 1, 5 * (0.1 + projWeight));
 #			if defined(SNOW_COVER)
-		if(snowCoverSettings.EnableSnowCover)
+		if (snowCoverSettings.EnableSnowCover)
 			projectedMaterialWeight *= saturate(1 - SnowCover::GetEnvironmentalMultiplier(pos));
-		
+
 #			endif
 #			if defined(TRUE_PBR)
 		pbrSurfaceProperties.Thickness = lerp(pbrSurfaceProperties.Thickness, 1, projectedMaterialWeight);
@@ -1881,7 +1877,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	if defined(WORLD_MAP)
 	baseColor.xyz = GetWorldMapBaseColor(rawBaseColor.xyz, baseColor.xyz, projWeight);
 #	endif  // WORLD_MAP
-
 
 	float waterRoughnessSpecular = 1;
 #	if defined(WETNESS_EFFECTS)
