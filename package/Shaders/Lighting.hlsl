@@ -9,7 +9,7 @@
 #include "Common/Skinned.hlsli"
 
 #if defined(TRUE_PBR)
-#undef LINEAR_LIGHTING
+#	undef LINEAR_LIGHTING
 #endif
 #include "Common/Color.hlsli"
 
@@ -2043,11 +2043,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(WETNESS_EFFECTS)
 	if (waterRoughnessSpecular < 1.0)
-	#if defined(LINEAR_LIGHTING)
+#			if defined(LINEAR_LIGHTING)
 		wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, worldSpaceViewDirection, dirLightColor * dirDetailShadow, waterRoughnessSpecular);
-	#else
+#			else
 		wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, worldSpaceViewDirection, Color::GammaToLinear(dirLightColor * dirDetailShadow) / Color::LightPreMult, waterRoughnessSpecular);
-#	endif
+#			endif
 #		endif
 #	endif
 
@@ -2260,11 +2260,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #			if defined(WETNESS_EFFECTS)
 		if (waterRoughnessSpecular < 1.0)
-	#if defined(LINEAR_LIGHTING)
+#				if defined(LINEAR_LIGHTING)
 			wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedLightDirection, worldSpaceViewDirection, lightColor, waterRoughnessSpecular);
-	#else
+#				else
 			wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedLightDirection, worldSpaceViewDirection, Color::GammaToLinear(lightColor) / Color::LightPreMult, waterRoughnessSpecular);
-#		endif
+#				endif
 #			endif
 	}
 #		endif
@@ -2354,11 +2354,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		envColorBase = TexEnvSampler.SampleLevel(SampEnvSampler, float3(1.0, 0.0, 0.0), 15);
 		envColorBase.rgb = Color::Tint(envColorBase.rgb);
 		if (envColorBase.a < 1.0) {
-		#if defined(LINEAR_LIGHTING)
+#			if defined(LINEAR_LIGHTING)
 			F0 = (envColorBase.rgb + baseColor.rgb);
-		#else
+#			else
 			F0 = (Color::GammaToLinear(envColorBase.rgb) + Color::GammaToLinear(baseColor.rgb));
-		#endif
+#			endif
 			envRoughness = envColorBase.a;
 		} else {
 			F0 = 1.0;
@@ -2369,11 +2369,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			if defined(CREATOR)
 	if (SharedData::cubemapCreatorSettings.Enabled) {
 		dynamicCubemap = true;
-		#if defined(LINEAR_LIGHTING)
+#				if defined(LINEAR_LIGHTING)
 		F0 = (Color::Tint(SharedData::cubemapCreatorSettings.CubemapColor.rgb) + baseColor.xyz);
-		#else
+#				else
 		F0 = (Color::GammaToLinear(SharedData::cubemapCreatorSettings.CubemapColor.rgb) + Color::GammaToLinear(baseColor.xyz));
-		#endif
+#				endif
 		envRoughness = SharedData::cubemapCreatorSettings.CubemapColor.a;
 	}
 #			endif
@@ -2382,11 +2382,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			if defined(EMAT)
 		float complexMaterialRoughness = 1.0 - complexMaterialColor.y;
 		envRoughness = lerp(envRoughness, complexMaterialRoughness * complexMaterialRoughness, complexMaterial);
-		#if defined(LINEAR_LIGHTING)
+#				if defined(LINEAR_LIGHTING)
 		F0 = lerp(F0, complexSpecular, complexMaterial);
-		#else
+#				else
 		F0 = lerp(F0, Color::GammaToLinear(complexSpecular), complexMaterial);
-		#endif
+#				endif
 #			endif
 
 		if (any(F0 > 0.0))
@@ -2551,9 +2551,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		if !defined(DEFERRED)
 	color.xyz += specularColor;
 #		endif
-#if !defined(LINEAR_LIGHTING)
+#		if !defined(LINEAR_LIGHTING)
 	color.xyz = Color::GammaToLinear(color.xyz);
-#endif
+#		endif
 #	endif
 
 #	if defined(WETNESS_EFFECTS) && !defined(TRUE_PBR)
@@ -2564,7 +2564,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz += specularColorPBR;
 #	endif
 
-#if !defined(LINEAR_LIGHTING)
+#	if !defined(LINEAR_LIGHTING)
 	color.xyz = Color::LinearToGamma(color.xyz);
 #	endif
 
@@ -2686,9 +2686,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #	else
 	psout.Diffuse.xyz = Color::Output(color.xyz);
-#if defined(LINEAR_LIGHTING) && !defined(DEFERRED) // ughhhh
+#		if defined(LINEAR_LIGHTING) && !defined(DEFERRED)  // ughhhh
 	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
-#endif
+#		endif
 #	endif  // defined(LIGHT_LIMIT_FIX)
 
 #	if defined(SNOW)

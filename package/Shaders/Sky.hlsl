@@ -1,6 +1,6 @@
+#include "Common/Color.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
-#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -237,7 +237,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color.w = input.TexCoord2.x * (baseColor.w * input.Color.w);
 #		else
 	psout.Color.w = input.Color.w * baseColor.w;
-	psout.Color.xyz = input.Color.xyz *baseColor.xyz + PParams.yyy;
+	psout.Color.xyz = input.Color.xyz * baseColor.xyz + PParams.yyy;
 #		endif
 
 #	else
@@ -252,7 +252,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(CLOUD_SHADOWS) && defined(CLOUDS) && !defined(DEFERRED)
 	psout.CloudShadows = psout.Color;
 #	endif
-	
+
 	psout.Color.xyz = Color::Output(psout.Color.xyz);
 	return psout;
 }

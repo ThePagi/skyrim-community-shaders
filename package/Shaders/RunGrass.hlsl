@@ -699,13 +699,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
-#if !defined(LINEAR_LIGHTING)
+#						if !defined(LINEAR_LIGHTING)
 	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
-#endif
+#						endif
 	directionalAmbientColor *= skylighting;
-#if !defined(LINEAR_LIGHTING)
+#						if !defined(LINEAR_LIGHTING)
 	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
-#endif
+#						endif
 #					endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;
@@ -858,13 +858,13 @@ PS_OUTPUT main(PS_INPUT input)
 #			if !defined(SSGI)
 	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
 	diffuseColor += directionalAmbientColor;
-#			endif  // !SSGI
+#			endif                                              // !SSGI
 
 	float3 albedo = baseColor.xyz * Color::Tint(input.DiffuseColor.xyz);
 	psout.Diffuse.xyz = Color::Output(diffuseColor * albedo);
-	#if defined(LINEAR_LIGHTING) && !defined(DEFERRED) // ughhhh
+#			if defined(LINEAR_LIGHTING) && !defined(DEFERRED)  // ughhhh
 	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
-	#endif
+#			endif
 	psout.Diffuse.w = 1;
 
 	psout.MotionVectors = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);

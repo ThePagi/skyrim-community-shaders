@@ -536,15 +536,15 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 	if (!(Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::InWorld))
 #		endif
 	{
-#if defined(LINEAR_LIGHTING)
+#		if defined(LINEAR_LIGHTING)
 		color.x += dot(pow(PLightColorR, 2.2) * lightFadeMul, 1.0.xxxx);
 		color.y += dot(pow(PLightColorG, 2.2) * lightFadeMul, 1.0.xxxx);
 		color.z += dot(pow(PLightColorB, 2.2) * lightFadeMul, 1.0.xxxx);
-#else
+#		else
 		color.x += dot(PLightColorR * lightFadeMul, 1.0.xxxx);
 		color.y += dot(PLightColorG * lightFadeMul, 1.0.xxxx);
 		color.z += dot(PLightColorB * lightFadeMul, 1.0.xxxx);
-#endif
+#		endif
 	}
 
 	return color;

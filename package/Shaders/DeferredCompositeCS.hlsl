@@ -107,9 +107,9 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 		normalWS = lerp(normalWS, float3(0, 0, 1), wetnessMask);
 
-#if !defined(LINEAR_LIGHTING)
+#	if !defined(LINEAR_LIGHTING)
 		color = Color::GammaToLinear(color);
-#endif
+#	endif
 		half3 V = normalize(positionWS.xyz);
 		half3 R = reflect(V, normalWS);
 
@@ -185,9 +185,9 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 		color += reflectance * finalIrradiance;
 
-#if !defined(LINEAR_LIGHTING)
+#	if !defined(LINEAR_LIGHTING)
 		color = Color::LinearToGamma(color);
-#endif
+#	endif
 	}
 
 #endif
