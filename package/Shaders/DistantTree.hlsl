@@ -4,6 +4,7 @@
 #include "Common/Random.hlsli"
 #include "Common/SharedData.hlsli"
 #include "Common/VR.hlsli"
+#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -201,7 +202,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Diffuse.w = 0;
 #	else
 	float4 baseColor = TexDiffuse.Sample(SampDiffuse, input.TexCoord.xy);
-
+	baseColor.rgb = Color::Diffuse(baseColor.rgb);
 	if ((baseColor.w - AlphaTestRefRS) < 0) {
 		discard;
 	}
@@ -230,14 +231,14 @@ PS_OUTPUT main(PS_INPUT input)
 	}
 #			endif
 
-	float3 diffuseColor = SharedData::DirLightColor.xyz * dirShadow * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * dirShadow * 0.5;
 
 	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
 	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
 	float3 normal = normalize(cross(ddx, ddy));
 
 #			if !defined(SSGI)
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
+	float3 directionalAmbientColor = Color::Light(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 	diffuseColor += directionalAmbientColor;
 #			endif
 
@@ -249,20 +250,23 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Normal.xy = GBuffer::EncodeNormal(FrameBuffer::WorldToView(normal, false, eyeIndex));
 	psout.Normal.zw = 0;
 
-	psout.Albedo = float4(baseColor.xyz, 1);
+	psout.Albedo = float4(Color::Output(baseColor.xyz), 1);
 	psout.Masks = float4(0, 0, 1, 0);
 #		else
-	float3 diffuseColor = SharedData::DirLightColor.xyz * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * 0.5;
 
 	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
 	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
 	float3 normal = normalize(cross(ddx, ddy));
 
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
+	float3 directionalAmbientColor = Color::Light(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 	diffuseColor += directionalAmbientColor;
 
 	float3 color = diffuseColor * baseColor.xyz;
-	psout.Diffuse = float4(color, 1.0);
+	psout.Diffuse = float4(Color::Output(color), 1.0);
+	#if defined(LINEAR_LIGHTING) && !defined(DEFERRED) // ughhhh
+	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
+	#endif
 #		endif  // DEFERRED
 #	endif      // RENDER_DEPTH
 

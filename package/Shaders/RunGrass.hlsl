@@ -1,4 +1,3 @@
-#include "Common/Color.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
 #include "Common/Math.hlsli"
@@ -9,6 +8,11 @@
 #ifdef GRASS_LIGHTING
 #	define GRASS
 #endif  // GRASS_LIGHTING
+
+#ifdef TRUE_PBR
+#	undef LINEAR_LIGHTING
+#endif
+#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -452,6 +456,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	{
 		baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord.xy);
 	}
+	baseColor.rgb = Color::Diffuse(baseColor.rgb);
 
 #		if defined(RENDER_DEPTH) || defined(DO_ALPHA_TEST)
 	float diffuseAlpha = input.VertexColor.w * baseColor.w;
@@ -530,7 +535,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float3 transmissionColor = 0;
 #			endif  // TRUE_PBR
 
-	float3 dirLightColor = SharedData::DirLightColor.xyz;
+	float3 dirLightColor = Color::Light(SharedData::DirLightColor.xyz);
 	float3 dirLightColorMultiplier = 1;
 
 	float dirLightAngle = dot(normal, SharedData::DirLightDirection.xyz);
@@ -593,7 +598,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float dirDiffuse = (dirLightAngle + wrapAmount) * wrapMultiplier;
 	lightsDiffuseColor += dirLightColor * saturate(dirDiffuse) * dirDetailShadow;
 
-	float3 albedo = max(0, baseColor.xyz * input.VertexColor.xyz);
+	float3 albedo = max(0, baseColor.xyz * Color::Tint(input.VertexColor.xyz));
 
 	float3 subsurfaceColor = lerp(Color::RGBToLuminance(albedo.xyz), albedo.xyz, 2.0) * input.VertexNormal.w;
 
@@ -625,7 +630,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 					continue;
 
 				float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-				float3 lightColor = light.color.xyz * intensityMultiplier;
+				float3 lightColor = Color::Light(light.color.xyz) * intensityMultiplier;
 
 				float lightShadow = 1.0;
 
@@ -680,7 +685,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			else
 
 #				if !defined(SSGI)
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
+	float3 directionalAmbientColor = Color::Tint(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 
 #					if defined(SKYLIGHTING)
 #						if defined(VR)
@@ -694,9 +699,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
+#if !defined(LINEAR_LIGHTING)
 	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
+#endif
 	directionalAmbientColor *= skylighting;
+#if !defined(LINEAR_LIGHTING)
 	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
+#endif
 #					endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;
@@ -722,7 +731,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		psout.Diffuse = float4(diffuseColor, 1);
 	}
 #			else
-	psout.Diffuse.xyz = diffuseColor;
+	psout.Diffuse.xyz = Color::Output(diffuseColor);
 #			endif
 
 	float3 normalVS = normalize(FrameBuffer::WorldToView(normal, false, eyeIndex));
@@ -732,11 +741,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	psout.Reflectance = float4(indirectSpecularLobeWeight, 1);
 	psout.Parameters = float4(0, 0, 1, 1);
 #			else
-	psout.Albedo = float4(albedo, 1);
+	psout.Albedo = float4(Color::Output(albedo), 1);
 	psout.NormalGlossiness = float4(GBuffer::EncodeNormal(normalVS), specColor.w, 1);
 #			endif
 
-	psout.Specular = float4(specularColor, 1);
+	psout.Specular = float4(Color::Output(specularColor), 1);
 	psout.Masks = float4(0, 0, 0, 0);
 #		endif
 	return psout;
@@ -747,7 +756,7 @@ PS_OUTPUT main(PS_INPUT input)
 	PS_OUTPUT psout;
 
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord.xy);
-
+	baseColor.rgb = Color::Diffuse(baseColor.rgb);
 #		if defined(RENDER_DEPTH) || defined(DO_ALPHA_TEST)
 	float diffuseAlpha = input.DiffuseColor.w * baseColor.w;
 
@@ -799,7 +808,7 @@ PS_OUTPUT main(PS_INPUT input)
 #			endif
 	}
 
-	float3 diffuseColor = SharedData::DirLightColor.xyz * dirShadow * lerp(dirDetailShadow, 1.0, 0.5) * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * dirShadow * lerp(dirDetailShadow, 1.0, 0.5) * 0.5;
 
 #			if defined(LIGHT_LIMIT_FIX)
 	uint clusterIndex = 0;
@@ -822,7 +831,7 @@ PS_OUTPUT main(PS_INPUT input)
 					continue;
 
 				float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-				float3 lightColor = light.color.xyz * intensityMultiplier;
+				float3 lightColor = Color::Light(light.color.xyz) * intensityMultiplier;
 
 				float lightShadow = 1.0;
 
@@ -851,16 +860,18 @@ PS_OUTPUT main(PS_INPUT input)
 	diffuseColor += directionalAmbientColor;
 #			endif  // !SSGI
 
-	float3 albedo = baseColor.xyz * input.DiffuseColor.xyz;
-	psout.Diffuse.xyz = diffuseColor * albedo;
-
+	float3 albedo = baseColor.xyz * Color::Tint(input.DiffuseColor.xyz);
+	psout.Diffuse.xyz = Color::Output(diffuseColor * albedo);
+	#if defined(LINEAR_LIGHTING) && !defined(DEFERRED) // ughhhh
+	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
+	#endif
 	psout.Diffuse.w = 1;
 
 	psout.MotionVectors = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
 	psout.Normal.xy = GBuffer::EncodeNormal(FrameBuffer::WorldToView(normal, false, eyeIndex));
 	psout.Normal.zw = 0;
 
-	psout.Albedo = float4(albedo, 1);
+	psout.Albedo = float4(Color::Output(albedo), 1);
 	psout.Masks = float4(0, 0, 0, 0);
 #		endif
 

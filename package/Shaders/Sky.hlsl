@@ -1,5 +1,6 @@
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
+#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -97,7 +98,7 @@ VS_OUTPUT main(VS_INPUT input)
 
 	vsout.TexCoord0.xy = input.TexCoord;
 	vsout.TexCoord2.x = saturate((1.0 / 17.0) * eyeHeightDelta);
-	vsout.Color.xyz = BlendColor[0].xyz * VParams;
+	vsout.Color.xyz = Color::Tint(BlendColor[0].xyz) * VParams;
 	vsout.Color.w = BlendColor[0].w;
 
 #	else  // MOONMASK HORIZFADE
@@ -124,8 +125,8 @@ VS_OUTPUT main(VS_INPUT input)
 	vsout.TexCoord1.xy = TexCoordOff + input.TexCoord;
 #		endif  // TEXLERP
 
-	float3 skyColor = BlendColor[0].xyz * input.Color.xxx + BlendColor[1].xyz * input.Color.yyy +
-	                  BlendColor[2].xyz * input.Color.zzz;
+	float3 skyColor = Color::Tint(BlendColor[0].xyz) * input.Color.xxx + Color::Tint(BlendColor[1].xyz) * input.Color.yyy +
+	                  Color::Tint(BlendColor[2].xyz) * input.Color.zzz;
 
 	vsout.Color.xyz = VParams * skyColor;
 	vsout.Color.w = BlendColor[0].w * input.Color.w;
@@ -199,12 +200,15 @@ PS_OUTPUT main(PS_INPUT input)
 #	ifndef OCCLUSION
 #		ifndef TEXLERP
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
+	baseColor.rgb = Color::Tint(baseColor.rgb);
 #			ifdef TEXFADE
 	baseColor.w *= PParams.x;
 #			endif
 #		else
 	float4 blendColor = TexBlendSampler.Sample(SampBlendSampler, input.TexCoord1.xy);
+	blendColor.rgb = Color::Tint(blendColor.rgb);
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
+	baseColor.rgb = Color::Tint(baseColor.rgb);
 	baseColor = PParams.xxxx * (-baseColor + blendColor) + baseColor;
 #		endif
 
@@ -229,11 +233,11 @@ PS_OUTPUT main(PS_INPUT input)
 	}
 
 #		elif defined(HORIZFADE)
-	psout.Color.xyz = float3(1.5, 1.5, 1.5) * (input.Color.xyz * baseColor.xyz + PParams.yyy);
+	psout.Color.xyz = float3(1.5, 1.5, 1.5) * (Color::Tint(input.Color.xyz) * baseColor.xyz + PParams.yyy);
 	psout.Color.w = input.TexCoord2.x * (baseColor.w * input.Color.w);
 #		else
 	psout.Color.w = input.Color.w * baseColor.w;
-	psout.Color.xyz = input.Color.xyz * baseColor.xyz + PParams.yyy;
+	psout.Color.xyz = input.Color.xyz *baseColor.xyz + PParams.yyy;
 #		endif
 
 #	else
@@ -248,7 +252,8 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(CLOUD_SHADOWS) && defined(CLOUDS) && !defined(DEFERRED)
 	psout.CloudShadows = psout.Color;
 #	endif
-
+	
+	psout.Color.xyz = Color::Output(psout.Color.xyz);
 	return psout;
 }
 #endif

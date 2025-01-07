@@ -63,11 +63,19 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 	half3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, half4(normalWS, 1.0));
 
+#if defined(LINEAR_LIGHTING)
+	half3 linAlbedo = lerp((albedo), Color::GammaToLinear(albedo) / Color::AlbedoPreMult, pbrWeight);
+	half3 linDirectionalAmbientColor = lerp(Color::Light(directionalAmbientColor), Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult, pbrWeight);
+	half3 linDiffuseColor = lerp((diffuseColor), Color::GammaToLinear(diffuseColor), pbrWeight);
+
+	half3 linAmbient = linAlbedo * linDirectionalAmbientColor;
+#else
 	half3 linAlbedo = Color::GammaToLinear(albedo) / Color::AlbedoPreMult;
 	half3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
 	half3 linDiffuseColor = Color::GammaToLinear(diffuseColor);
 
 	half3 linAmbient = lerp(Color::GammaToLinear(albedo * directionalAmbientColor), linAlbedo * linDirectionalAmbientColor, pbrWeight);
+#endif
 
 	half visibility = 1.0;
 #if defined(SKYLIGHTING)
@@ -121,10 +129,14 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 #endif
 
 	linAmbient *= visibility;
+
+#if defined(LINEAR_LIGHTING)
+	diffuseColor = Color::Output(linDiffuseColor + linAmbient);
+#else
 	diffuseColor = Color::LinearToGamma(linDiffuseColor);
 	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::LightPreMult);
-
 	diffuseColor = lerp(diffuseColor + directionalAmbientColor * albedo, Color::LinearToGamma(linDiffuseColor + linAmbient), pbrWeight);
+#endif
 
 	MainRW[dispatchID.xy] = diffuseColor;
 };

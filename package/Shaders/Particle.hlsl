@@ -1,5 +1,6 @@
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
+#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -261,10 +262,11 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 
 	float4 sourceColor = TexSourceTexture.Sample(SampSourceTexture, input.TexCoord0);
-	float4 baseColor = input.Color * sourceColor;
+	sourceColor.rgb = Color::Diffuse(sourceColor.rgb);
+	float4 baseColor = float4(Color::Tint(input.Color.rgb), input.Color.a) * sourceColor;
 #	if defined(GRAYSCALE_TO_COLOR)
 	float3 grayScaleColor =
-		TexGrayscaleTexture.Sample(SampGrayscaleTexture, float2(sourceColor.y, input.Color.x)).xyz;
+		Color::Diffuse(TexGrayscaleTexture.Sample(SampGrayscaleTexture, float2(sourceColor.y, input.Color.x)).xyz);
 	baseColor.xyz = grayScaleColor;
 #	endif
 #	if defined(GRAYSCALE_TO_ALPHA)
@@ -273,7 +275,7 @@ PS_OUTPUT main(PS_INPUT input)
 	baseColor.w = grayScaleAlpha;
 #	endif
 
-	psout.Color.xyz = ColorScale * baseColor.xyz;
+	psout.Color.xyz = Color::Output(ColorScale * baseColor.xyz);
 	psout.Color.w = baseColor.w;
 	psout.Normal.w = baseColor.w;
 	psout.Normal.xyz = float3(0, 1, 0);

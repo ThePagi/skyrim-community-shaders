@@ -3,6 +3,10 @@
 
 #include "Common/Math.hlsli"
 
+#if defined(TRUE_PBR)
+#undef LINEAR_LIGHTING
+#endif
+
 namespace Color
 {
 	static float GammaCorrectionValue = 2.2;
@@ -53,6 +57,35 @@ namespace Color
 	{
 		return pow(abs(color), 1.0 / 2.2);
 	}
+
+#if defined(LINEAR_LIGHTING)
+	float3 Diffuse(float3 color){
+		return GammaToLinear(color) * 1.7;
+	}
+	float3 Tint(float3 color){
+		return GammaToLinear(color);
+	}
+	float3 Light(float3 color){
+		return GammaToLinear(color);// * Math::PI * AlbedoPreMult;
+	}
+	float3 Output(float3 color){
+		return (color);
+	}
+#else
+	float3 Diffuse(float3 color){
+		return color;
+	}
+	float3 Tint(float3 color){
+		return color;
+	}
+	float3 Light(float3 color){
+		return color;
+	}
+	float3 Output(float3 color){
+		return color;
+	}
+#endif
+
 }
 
 #endif  //__COLOR_DEPENDENCY_HLSL__
