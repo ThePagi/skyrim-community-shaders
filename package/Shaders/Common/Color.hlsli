@@ -69,7 +69,7 @@ namespace Color
 	}
 	float3 Light(float3 color)
 	{
-		return GammaToLinear(color);  // * Math::PI * AlbedoPreMult;
+		return GammaToLinear(color) * AlbedoPreMult; //* Math::PI * AlbedoPreMult;
 	}
 	float3 Output(float3 color)
 	{

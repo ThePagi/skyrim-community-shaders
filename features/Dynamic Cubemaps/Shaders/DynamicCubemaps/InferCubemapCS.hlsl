@@ -50,7 +50,6 @@ float3 GetSamplingVector(uint3 ThreadID, in RWTexture2DArray<float4> OutputTextu
 								: SV_DispatchThreadID) {
 	float3 uv = GetSamplingVector(ThreadID, EnvInferredTexture);
 	float4 color = EnvCaptureTexture.SampleLevel(LinearSampler, uv, 0);
-
 	float mipLevel = 0.0;
 
 #if !defined(REFLECTIONS)
@@ -90,11 +89,19 @@ float3 GetSamplingVector(uint3 ThreadID, in RWTexture2DArray<float4> OutputTextu
 	}
 
 #if defined(REFLECTIONS)
+#	if defined(LINEAR_LIGHTING)
 	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
+#	else
+	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
+#	endif
 #else
 	color.rgb = lerp(color.rgb, color.rgb * DefaultCubemap.SampleLevel(LinearSampler, uv, 0), saturate(mipLevel / 7.0));
 #endif
 
+#if defined(LINEAR_LIGHTING)
+	color.rgb = color.rgb;
+#else
 	color.rgb = Color::LinearToGamma(color.rgb);
+#endif
 	EnvInferredTexture[ThreadID] = max(0, color);
 }

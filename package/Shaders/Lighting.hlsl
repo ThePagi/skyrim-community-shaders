@@ -2366,7 +2366,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			F0 = (envColorBase.rgb + baseColor.rgb);
 #			else
 			F0 = (Color::GammaToLinear(envColorBase.rgb) + Color::GammaToLinear(baseColor.rgb));
-#			endif				envRoughness = envColorBase.a;
+#			endif				
+			envRoughness = envColorBase.a;
 			} else {
 				F0 = 1.0;
 				envRoughness = 1.0 / 7.0;
