@@ -8,7 +8,6 @@
 #include "Common/SharedData.hlsli"
 #include "Common/Skinned.hlsli"
 
-
 #include "Common/Color.hlsli"
 
 #if defined(FACEGEN) || defined(FACEGEN_RGB_TINT)
@@ -2356,11 +2355,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 			if (envColorBase.a < 1.0) {
 #			if defined(LINEAR_LIGHTING)
-			F0 = (envColorBase.rgb + baseColor.rgb);
+				F0 = (envColorBase.rgb + baseColor.rgb);
 #			else
-			F0 = (Color::GammaToLinear(envColorBase.rgb) + Color::GammaToLinear(baseColor.rgb));
-#			endif				
-			envRoughness = envColorBase.a;
+				F0 = (Color::GammaToLinear(envColorBase.rgb) + Color::GammaToLinear(baseColor.rgb));
+#			endif
+				envRoughness = envColorBase.a;
 			} else {
 				F0 = 1.0;
 				envRoughness = 1.0 / 7.0;

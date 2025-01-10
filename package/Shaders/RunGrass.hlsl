@@ -853,7 +853,7 @@ PS_OUTPUT main(PS_INPUT input)
 #			if !defined(SSGI)
 	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
 	diffuseColor += directionalAmbientColor;
-#			endif                                              // !SSGI
+#			endif  // !SSGI
 
 	float3 albedo = baseColor.xyz * Color::Tint(input.DiffuseColor.xyz);
 	psout.Diffuse.xyz = Color::Output(diffuseColor * albedo);

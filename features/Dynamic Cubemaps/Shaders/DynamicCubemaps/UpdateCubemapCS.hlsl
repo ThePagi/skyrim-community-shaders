@@ -129,5 +129,4 @@ float smoothbumpstep(float edge0, float edge1, float x)
 	color *= distanceFactor;
 
 	DynamicCubemap[ThreadID] = max(0, color);
-	
 }

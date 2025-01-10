@@ -94,7 +94,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 	half glossiness = normalGlossiness.z;
 
-#	if defined(LINEAR_LIGHTING)
+#if defined(LINEAR_LIGHTING)
 	half3 color = diffuseColor + specularColor;
 #else
 	half3 color = lerp(diffuseColor + specularColor, Color::LinearToGamma(Color::GammaToLinear(diffuseColor) + Color::GammaToLinear(specularColor)), pbrWeight);
