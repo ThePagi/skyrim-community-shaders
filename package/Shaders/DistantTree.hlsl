@@ -264,9 +264,6 @@ PS_OUTPUT main(PS_INPUT input)
 
 	float3 color = diffuseColor * baseColor.xyz;
 	psout.Diffuse = float4(Color::Output(color), 1.0);
-#			if defined(LINEAR_LIGHTING) && !defined(DEFERRED)  // ughhhh
-	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
-#			endif
 #		endif  // DEFERRED
 #	endif      // RENDER_DEPTH
 

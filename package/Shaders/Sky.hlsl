@@ -254,9 +254,6 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 
 	psout.Color.xyz = Color::Output(psout.Color.xyz);
-#			if defined(LINEAR_LIGHTING) && !defined(DEFERRED)
-	psout.Color.xyz = Color::LinearToGamma(psout.Color.xyz);
-#endif
 	return psout;
 }
 #endif

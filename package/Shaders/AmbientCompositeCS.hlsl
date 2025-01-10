@@ -64,9 +64,9 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 	half3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, half4(normalWS, 1.0));
 
 #if defined(LINEAR_LIGHTING)
-	half3 linAlbedo = lerp((albedo), Color::GammaToLinear(albedo) / Color::AlbedoPreMult, pbrWeight);
-	half3 linDirectionalAmbientColor = lerp(Color::Light(directionalAmbientColor), Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult, pbrWeight);
-	half3 linDiffuseColor = lerp((diffuseColor), Color::GammaToLinear(diffuseColor), pbrWeight);
+	half3 linAlbedo = albedo;
+	half3 linDirectionalAmbientColor = Color::Light(directionalAmbientColor);
+	half3 linDiffuseColor = diffuseColor;
 
 	half3 linAmbient = linAlbedo * linDirectionalAmbientColor;
 #else
@@ -131,7 +131,7 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 	linAmbient *= visibility;
 
 #if defined(LINEAR_LIGHTING)
-	diffuseColor = Color::Output(linDiffuseColor + linAmbient);
+	diffuseColor = linDiffuseColor + linAmbient;
 #else
 	diffuseColor = Color::LinearToGamma(linDiffuseColor);
 	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::LightPreMult);

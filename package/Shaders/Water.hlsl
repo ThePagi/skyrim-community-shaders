@@ -939,7 +939,6 @@ PS_OUTPUT main(PS_INPUT input)
 	finalColorPreFog = lerp(refractionColor, finalColorPreFog, diffuseOutput.refractionMul);
 	float3 finalColor = finalColorPreFog;
 #						endif
-	finalColor = Color::Output(finalColor);
 #					else
 #						if defined(VC)
 	float specularFraction = lerp(1, fresnel * diffuseOutput.refractionMul, distanceFactor);
@@ -966,11 +965,8 @@ PS_OUTPUT main(PS_INPUT input)
 
 #				endif
 #			endif
-	psout.Lighting = saturate(float4(finalColor, isSpecular));
+	psout.Lighting = saturate(float4(Color::Output(finalColor), isSpecular));
 	//psout.Lighting.xyz = DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz;
-#			if defined(LINEAR_LIGHTING)  // no deffered so gotta go srgb
-	psout.Lighting.xyz = Color::LinearToGamma(psout.Lighting.xyz);
-#			endif
 #		endif
 
 #		if defined(STENCIL)

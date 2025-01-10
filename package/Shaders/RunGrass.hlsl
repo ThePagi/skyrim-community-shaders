@@ -9,9 +9,6 @@
 #	define GRASS
 #endif  // GRASS_LIGHTING
 
-#ifdef TRUE_PBR
-#	undef LINEAR_LIGHTING
-#endif
 #include "Common/Color.hlsli"
 
 struct VS_INPUT
@@ -583,7 +580,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	{
 		PBR::LightProperties lightProperties = PBR::InitLightProperties(SharedData::DirLightColor.xyz, dirLightColorMultiplier * dirShadow, 1);
 		float3 dirDiffuseColor, coatDirDiffuseColor, dirTransmissionColor, dirSpecularColor;
-		PBR::GetDirectLightInput(dirDiffuseColor, coatDirDiffuseColor, dirTransmissionColor, dirSpecularColor, normal, normal, viewDirection, viewDirection, DirLightDirection, DirLightDirection, lightProperties, pbrSurfaceProperties, tbn, input.TexCoord.xy);
+		PBR::GetDirectLightInput(dirDiffuseColor, coatDirDiffuseColor, dirTransmissionColor, dirSpecularColor, normal, normal, viewDirection, viewDirection, SharedData::DirLightDirection.xyz, SharedData::DirLightDirection.xyz, lightProperties, pbrSurfaceProperties, tbn, input.TexCoord.xy);
 		lightsDiffuseColor += dirDiffuseColor;
 		transmissionColor += dirTransmissionColor;
 		specularColorPBR += dirSpecularColor;
@@ -680,8 +677,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	diffuseColor.xyz += transmissionColor;
 	specularColor.xyz += specularColorPBR;
-	specularColor.xyz = Color::LinearToGamma(specularColor.xyz);
-	diffuseColor.xyz = Color::LinearToGamma(diffuseColor.xyz);
 #			else
 
 #				if !defined(SSGI)
@@ -736,7 +731,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	float3 normalVS = normalize(FrameBuffer::WorldToView(normal, false, eyeIndex));
 #			if defined(TRUE_PBR)
-	psout.Albedo = float4(Color::LinearToGamma(indirectDiffuseLobeWeight * Color::AlbedoPreMult), 1);
+	psout.Albedo = float4(Color::Output(indirectDiffuseLobeWeight * Color::AlbedoPreMult), 1);
 	psout.NormalGlossiness = float4(GBuffer::EncodeNormal(normalVS), 1 - pbrSurfaceProperties.Roughness, 1);
 	psout.Reflectance = float4(indirectSpecularLobeWeight, 1);
 	psout.Parameters = float4(0, 0, 1, 1);
@@ -862,9 +857,6 @@ PS_OUTPUT main(PS_INPUT input)
 
 	float3 albedo = baseColor.xyz * Color::Tint(input.DiffuseColor.xyz);
 	psout.Diffuse.xyz = Color::Output(diffuseColor * albedo);
-#			if defined(LINEAR_LIGHTING) && !defined(DEFERRED)  // ughhhh
-	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
-#			endif
 	psout.Diffuse.w = 1;
 
 	psout.MotionVectors = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);

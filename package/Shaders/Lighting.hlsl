@@ -8,9 +8,7 @@
 #include "Common/SharedData.hlsli"
 #include "Common/Skinned.hlsli"
 
-#if defined(TRUE_PBR)
-#	undef LINEAR_LIGHTING
-#endif
+
 #include "Common/Color.hlsli"
 
 #if defined(FACEGEN) || defined(FACEGEN_RGB_TINT)
@@ -2279,9 +2277,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	if (Permutation::PixelShaderDescriptor & Permutation::LightingFlags::CharacterLight) {
 		float charLightMul = saturate(dot(worldSpaceViewDirection, worldSpaceNormal.xyz)) * CharacterLightParams.x + CharacterLightParams.y * saturate(dot(float2(0.164398998, -0.986393988), worldSpaceNormal.yz));
 		float charLightColor = min(CharacterLightParams.w, max(0, CharacterLightParams.z * TexCharacterLightProjNoiseSampler.Sample(SampCharacterLightProjNoiseSampler, baseShadowUV).x));
-#		if defined(TRUE_PBR)
-		charLightColor = Color::GammaToLinear(charLightColor).x / Color::LightPreMult;
-#		endif
+		charLightColor = Color::Light(charLightColor).x;
 		diffuseColor += (charLightMul * charLightColor).xxx;
 	}
 #	endif
@@ -2308,9 +2304,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif
 
 	float3 directionalAmbientColor = Color::Light(mul(DirectionalAmbient, modelNormal));
-#	if defined(TRUE_PBR)
-	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
-#	endif
 
 	float3 reflectionDiffuseColor = diffuseColor + directionalAmbientColor;
 
@@ -2695,9 +2688,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #	else
 	psout.Diffuse.xyz = Color::Output(color.xyz);
-#		if defined(LINEAR_LIGHTING) && !defined(DEFERRED)  // ughhhh
-	psout.Diffuse.xyz = Color::LinearToGamma(psout.Diffuse.xyz);
-#		endif
 #	endif  // defined(LIGHT_LIMIT_FIX)
 
 #	if defined(SNOW)
@@ -2739,15 +2729,17 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	float3 outputSpecular = specularColor.xyz;
 #		if defined(TRUE_PBR)
-	outputSpecular = Color::LinearToGamma(specularColorPBR.xyz);
+	outputSpecular = specularColorPBR.xyz;
 #		endif
 	psout.Specular = float4(Color::Output(outputSpecular), psout.Diffuse.w);
 
-	float3 outputAlbedo = Color::Output(baseColor.xyz * vertexColor);
 #		if defined(TRUE_PBR)
-	outputAlbedo = Color::LinearToGamma(indirectDiffuseLobeWeight * Color::AlbedoPreMult);
+	float3 outputAlbedo = indirectDiffuseLobeWeight * Color::AlbedoPreMult;
+#		else
+	float3 outputAlbedo = baseColor.xyz * vertexColor;
+
 #		endif
-	psout.Albedo = float4(outputAlbedo, psout.Diffuse.w);
+	psout.Albedo = float4(Color::Output(outputAlbedo), psout.Diffuse.w);
 
 	float outGlossiness = saturate(glossiness * SSRParams.w);
 

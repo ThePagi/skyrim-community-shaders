@@ -3,9 +3,6 @@
 
 #include "Common/Math.hlsli"
 
-#if defined(TRUE_PBR)
-#	undef LINEAR_LIGHTING
-#endif
 
 namespace Color
 {
@@ -61,7 +58,11 @@ namespace Color
 #if defined(LINEAR_LIGHTING)
 	float3 Diffuse(float3 color)
 	{
+		#if defined(TRUE_PBR)
+		return color;
+		#else
 		return GammaToLinear(color) * 1.7;
+		#endif
 	}
 	float3 Tint(float3 color)
 	{
@@ -69,11 +70,20 @@ namespace Color
 	}
 	float3 Light(float3 color)
 	{
+		#if defined(TRUE_PBR)
+		return GammaToLinear(color) * AlbedoPreMult * Math::PI; //* Math::PI * AlbedoPreMult;
+		#else
 		return GammaToLinear(color) * AlbedoPreMult; //* Math::PI * AlbedoPreMult;
+		#endif
 	}
 	float3 Output(float3 color)
 	{
-		return (color);
+		//TODO if not deferred then srgb
+		#if defined(DEFERRED)
+		return color;
+		#else
+		return LinearToGamma(color);
+		#endif
 	}
 #else
 	float3 Diffuse(float3 color)
@@ -86,7 +96,11 @@ namespace Color
 	}
 	float3 Light(float3 color)
 	{
+		#if defined(TRUE_PBR)
+		return GammaToLinear(color) * AlbedoPreMult * Math::PI;
+		#else
 		return color;
+		#endif
 	}
 	float3 Output(float3 color)
 	{
