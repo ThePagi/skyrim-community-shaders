@@ -70,21 +70,22 @@ namespace Color
 	float3 Light(float3 color)
 	{
 #	if defined(TRUE_PBR)
-		return GammaToLinear(color) * AlbedoPreMult * Math::PI;  //* Math::PI * AlbedoPreMult;
+		return GammaToLinear(color) * AlbedoPreMult * Math::PI;
 #	else
-		return GammaToLinear(color) * AlbedoPreMult;  //* Math::PI * AlbedoPreMult;
+		return GammaToLinear(color) * AlbedoPreMult;
 #	endif
 	}
 	float3 Output(float3 color)
 	{
-//TODO if not deferred then srgb
 #	if defined(DEFERRED)
 		return color;
 #	else
 		return LinearToGamma(color);
 #	endif
 	}
+	
 #else
+
 	float3 Diffuse(float3 color)
 	{
 		return color;
@@ -103,8 +104,12 @@ namespace Color
 	}
 	float3 Output(float3 color)
 	{
+#	if defined(TRUE_PBR)
+		return LinearToGamma(color);
+#	else
 		return color;
-	}
+#	endif	
+}
 #endif
 
 }

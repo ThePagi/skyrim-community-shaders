@@ -191,6 +191,7 @@ cbuffer AlphaTestRefCB : register(b11)
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT psout;
+	float3 yyy = Color::Tint(PParams.yyy);
 #	if !defined(VR)
 	uint eyeIndex = 0;
 #	else
@@ -218,10 +219,10 @@ PS_OUTPUT main(PS_INPUT input)
 		TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
 
 #			ifdef TEX
-	psout.Color.xyz = (input.Color.xyz * baseColor.xyz + PParams.yyy) + noiseGrad;
+	psout.Color.xyz = (input.Color.xyz * baseColor.xyz + yyy) + noiseGrad;
 	psout.Color.w = baseColor.w * input.Color.w;
 #			else
-	psout.Color.xyz = (PParams.yyy + input.Color.xyz) + noiseGrad;
+	psout.Color.xyz = (yyy + input.Color.xyz) + noiseGrad;
 	psout.Color.w = input.Color.w;
 #			endif  // TEX
 
@@ -233,11 +234,11 @@ PS_OUTPUT main(PS_INPUT input)
 	}
 
 #		elif defined(HORIZFADE)
-	psout.Color.xyz = float3(1.5, 1.5, 1.5) * (Color::Tint(input.Color.xyz) * baseColor.xyz + PParams.yyy);
+	psout.Color.xyz = float3(1.5, 1.5, 1.5) * (Color::Tint(input.Color.xyz) * baseColor.xyz + yyy);
 	psout.Color.w = input.TexCoord2.x * (baseColor.w * input.Color.w);
 #		else
 	psout.Color.w = input.Color.w * baseColor.w;
-	psout.Color.xyz = input.Color.xyz * baseColor.xyz + PParams.yyy;
+	psout.Color.xyz = input.Color.xyz * baseColor.xyz + yyy;
 #		endif
 
 #	else

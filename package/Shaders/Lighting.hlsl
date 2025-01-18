@@ -8,7 +8,6 @@
 #include "Common/SharedData.hlsli"
 #include "Common/Skinned.hlsli"
 
-#include "Common/Color.hlsli"
 
 #if defined(FACEGEN) || defined(FACEGEN_RGB_TINT)
 #	define SKIN
@@ -25,6 +24,8 @@
 #if defined(LODOBJECTS) || defined(LODOBJECTSHD) || defined(LODLANDNOISE) || defined(WORLD_MAP)
 #	define LOD
 #endif
+
+#include "Common/Color.hlsli"
 
 struct VS_INPUT
 {
@@ -902,12 +903,14 @@ float3 GetWorldMapBaseColor(float3 originalBaseColor, float3 rawBaseColor, float
 	float4 lodColorMul = lodMultiplier.xxxx * float4(0.269999981, 0.281000018, 0.441000015, 0.441000015) + float4(0.0780000091, 0.09799999, -0.0349999964, 0.465000004);
 	float4 lodColor = lodColorMul.xyzw * 2.0.xxxx;
 	bool useLodColorZ = lodColorMul.w > 0.5;
+	lodColor.xyz = Color::Tint(lodColor.xyz);
 	lodColor.xyz = max(lodColor.xyz, rawBaseColor.xyz);
 	lodColor.w = useLodColorZ ? lodColor.z : min(lodColor.w, rawBaseColor.z);
 	return (0.5 * lodMultiplier).xxx * (lodColor.xyw - rawBaseColor.xyz) + rawBaseColor;
 #		else
 	float4 lodColorMul = lodMultiplier.xxxx * float4(0.199999988, 0.441000015, 0.269999981, 0.281000018) + float4(0.300000012, 0.465000004, 0.0780000091, 0.09799999);
 	float3 lodColor = lodColorMul.zwy * 2.0.xxx;
+	lodColor.xyz = Color::Tint(lodColor.xyz);
 	lodColor.xy = max(lodColor.xy, rawBaseColor.xy);
 	lodColor.z = lodColorMul.y > 0.5 ? max((lodMultiplier * 0.441 + -0.0349999964) * 2, rawBaseColor.z) : min(lodColor.z, rawBaseColor.z);
 	return lodColorMul.xxx * (lodColor - rawBaseColor.xyz) + rawBaseColor;
@@ -1270,7 +1273,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		normal.xyz = normal.xzy - 0.5.xxx;
 		float lodLandNoiseParameter = GetLodLandBlendParameter(baseColor.xyz);
 		float noise = TexLandLodNoiseSampler.Sample(SampLandLodNoiseSampler, uv * 3.0.xx).x;
-		float lodLandNoiseMultiplier = GetLodLandBlendMultiplier(lodLandNoiseParameter, noise);
+		float lodLandNoiseMultiplier = Color::Tint(GetLodLandBlendMultiplier(lodLandNoiseParameter, noise));
 		baseColor.xyz *= lodLandNoiseMultiplier;
 		normal.xyz *= 2;
 		normal.w = 1;
@@ -1629,7 +1632,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(WORLD_MAP)
 	baseColor.xyz = GetWorldMapBaseColor(rawBaseColor.xyz, baseColor.xyz, projWeight);
-
 #	endif  // WORLD_MAP
 
 	float3 worldSpaceNormal = modelNormal.xyz;
@@ -2059,7 +2061,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			continue;
 
 		float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-		float3 lightColor = Color::Light(PointLightColor[lightIndex].xyz) * intensityMultiplier;
+		float3 lightColor = Color::Light(PointLightColor[lightIndex].xyz * intensityMultiplier);
 		float lightShadow = 1.f;
 		if (Permutation::PixelShaderDescriptor & Permutation::LightingFlags::DefShadow) {
 			if (lightIndex < numShadowLights) {
@@ -2156,7 +2158,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			continue;
 
 		float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-		float3 lightColor = Color::Light(light.color.xyz) * intensityMultiplier;
+		float3 lightColor = Color::Light(light.color.xyz * intensityMultiplier);
 		float lightShadow = 1.0;
 
 		float shadowComponent = 1.0;
@@ -2293,7 +2295,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 	[branch] if (hasEmissive)
 	{
-		float3 glowColor = TexGlowSampler.Sample(SampGlowSampler, uv).xyz;
+		float3 glowColor = Color::Tint(TexGlowSampler.Sample(SampGlowSampler, uv).xyz);
 		emitColor *= glowColor;
 	}
 #	endif
@@ -2302,7 +2304,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	diffuseColor += emitColor.xyz;
 #	endif
 
-	float3 directionalAmbientColor = Color::Light(mul(DirectionalAmbient, modelNormal));
+	float3 directionalAmbientColor = Color::Tint(mul(DirectionalAmbient, modelNormal));
 
 	float3 reflectionDiffuseColor = diffuseColor + directionalAmbientColor;
 
@@ -2523,7 +2525,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			else
 		diffuseColor = 1.0;
 #			endif
+#		if !defined(LINEAR_LIGHTING)
 		specularColor = Color::GammaToLinear(specularColor);
+#		endif
 	}
 #		endif
 
@@ -2540,7 +2544,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #		if defined(DYNAMIC_CUBEMAPS) && !defined(LINEAR_LIGHTING)
 	if (dynamicCubemap)
+#		if !defined(LINEAR_LIGHTING)
 		specularColor = Color::LinearToGamma(specularColor);
+#		endif
 #		endif
 #	endif
 
@@ -2565,7 +2571,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz += specularColorPBR;
 #	endif
 
-#	if !defined(LINEAR_LIGHTING)
+#	if !defined(LINEAR_LIGHTING) && !defined(TRUE_PBR)
 	color.xyz = Color::LinearToGamma(color.xyz);
 #	endif
 
@@ -2686,7 +2692,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		psout.Diffuse.xyz = color.xyz;
 	}
 #	else
-	psout.Diffuse.xyz = Color::Output(color.xyz);
+	psout.Diffuse.xyz = Color::Output(color.xyz); //------------------------------------------
+	#if defined(LODLANDNOISE)
+	//psout.Diffuse.xyz = 1;
+	#endif
 #	endif  // defined(LIGHT_LIMIT_FIX)
 
 #	if defined(SNOW)
@@ -2730,6 +2739,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		if defined(TRUE_PBR)
 	outputSpecular = specularColorPBR.xyz;
 #		endif
+
 	psout.Specular = float4(Color::Output(outputSpecular), psout.Diffuse.w);
 
 #		if defined(TRUE_PBR)

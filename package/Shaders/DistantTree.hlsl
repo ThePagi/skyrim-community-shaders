@@ -242,7 +242,7 @@ PS_OUTPUT main(PS_INPUT input)
 	diffuseColor += directionalAmbientColor;
 #			endif
 
-	psout.Diffuse.xyz = diffuseColor * baseColor.xyz;
+	psout.Diffuse.xyz = Color::Output(diffuseColor * baseColor.xyz);
 	psout.Diffuse.w = 1;
 
 	psout.MotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);

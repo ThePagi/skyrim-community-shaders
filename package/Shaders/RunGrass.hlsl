@@ -677,10 +677,14 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	diffuseColor.xyz += transmissionColor;
 	specularColor.xyz += specularColorPBR;
+#if !defined(LINEAR_LIGHTING)
+	specularColor.xyz = Color::LinearToGamma(specularColor.xyz);
+	diffuseColor.xyz = Color::LinearToGamma(diffuseColor.xyz);
+#endif
 #			else
 
 #				if !defined(SSGI)
-	float3 directionalAmbientColor = Color::Tint(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
+	float3 directionalAmbientColor = Color::Light(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 
 #					if defined(SKYLIGHTING)
 #						if defined(VR)
@@ -726,21 +730,22 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		psout.Diffuse = float4(diffuseColor, 1);
 	}
 #			else
-	psout.Diffuse.xyz = Color::Output(diffuseColor);
+	// looks wrong here with Color::Output (converts to srgb cos no deferred) idk why, dont cares
+	psout.Diffuse.xyz = (diffuseColor);
 #			endif
 
 	float3 normalVS = normalize(FrameBuffer::WorldToView(normal, false, eyeIndex));
 #			if defined(TRUE_PBR)
-	psout.Albedo = float4(Color::Output(indirectDiffuseLobeWeight * Color::AlbedoPreMult), 1);
+	psout.Albedo = float4((indirectDiffuseLobeWeight * Color::AlbedoPreMult), 1);
 	psout.NormalGlossiness = float4(GBuffer::EncodeNormal(normalVS), 1 - pbrSurfaceProperties.Roughness, 1);
 	psout.Reflectance = float4(indirectSpecularLobeWeight, 1);
 	psout.Parameters = float4(0, 0, 1, 1);
 #			else
-	psout.Albedo = float4(Color::Output(albedo), 1);
+	psout.Albedo = float4((albedo), 1);
 	psout.NormalGlossiness = float4(GBuffer::EncodeNormal(normalVS), specColor.w, 1);
 #			endif
 
-	psout.Specular = float4(Color::Output(specularColor), 1);
+	psout.Specular = float4((specularColor), 1);
 	psout.Masks = float4(0, 0, 0, 0);
 #		endif
 	return psout;

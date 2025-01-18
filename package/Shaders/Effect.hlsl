@@ -662,7 +662,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	else
 	float4 baseColorMul = BaseColor;
 #		if defined(VC) && !defined(PROJECTED_UV)
-	baseColorMul *= float4(Color::Diffuse(input.Color.rgb), input.Color.a);
+	baseColorMul *= float4(Color::Tint(input.Color.rgb), input.Color.a);
 #		endif
 #	endif
 
@@ -715,7 +715,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(MEMBRANE)
 		grayscaleToColorUv.y = PropertyColor.x;
 #	endif
-		baseColor.xyz = baseColorScale * Color::Diffuse(TexGrayscaleSampler.Sample(SampGrayscaleSampler, grayscaleToColorUv).xyz);
+		baseColor.xyz = baseColorScale * Color::Tint(TexGrayscaleSampler.Sample(SampGrayscaleSampler, grayscaleToColorUv).xyz);
 	}
 
 	float3 lightColor = lerp(baseColor.xyz, propertyColor * baseColor.xyz, lightingInfluence.xxx);
@@ -793,7 +793,6 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Normal = float4(!(Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::EffectShadows), 0, 0, finalColor.w);
 	psout.Color2 = float4(Color::Output(finalColor.rgb), finalColor.a);
 #	endif
-
 	return psout;
 }
 #endif

@@ -88,6 +88,7 @@ float3 GetSamplingVector(uint3 ThreadID, in RWTexture2DArray<float4> OutputTextu
 		}
 	}
 
+	//color.rgb = Color::Tint(color.rgb);
 #if defined(REFLECTIONS)
 #	if defined(LINEAR_LIGHTING)
 	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
@@ -95,7 +96,7 @@ float3 GetSamplingVector(uint3 ThreadID, in RWTexture2DArray<float4> OutputTextu
 	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
 #	endif
 #else
-	color.rgb = lerp(color.rgb, color.rgb * DefaultCubemap.SampleLevel(LinearSampler, uv, 0), saturate(mipLevel / 7.0));
+	color.rgb = lerp(color.rgb, color.rgb * Color::Tint(DefaultCubemap.SampleLevel(LinearSampler, uv, 0)), saturate(mipLevel / 7.0));
 #endif
 
 #if defined(LINEAR_LIGHTING)

@@ -624,8 +624,7 @@ float3 GetWaterSpecularColor(PS_INPUT input, float3 normal, float3 viewDirection
 #			if defined(LINEAR_LIGHTING)
 		float3 finalReflectionColor = lerp((reflectionColor), (finalSsrReflectionColor), ssrFraction);
 #			else
-		float3 finalReflectionColor = lerp(Color::GammaToLinear(reflectionColor), Color::GammaToLinear(finalSsrReflectionColor), ssrFraction);
-		finalReflectionColor = Color::LinearToGamma(finalReflectionColor);
+		float3 finalReflectionColor = Color::LinearToGamma(lerp(Color::GammaToLinear(reflectionColor), Color::GammaToLinear(finalSsrReflectionColor), ssrFraction));
 #			endif
 		return finalReflectionColor;
 	}
@@ -736,9 +735,10 @@ DiffuseOutput GetWaterDiffuseColor(PS_INPUT input, float3 normal, float3 viewDir
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WPosition.xyz));
 
 		float3 refractionDiffuseColorSkylight = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
+#					if defined(LINEAR_LIGHTING)
 		refractionDiffuseColor = refractionDiffuseColor * refractionDiffuseColorSkylight;
-#					if !defined(LINEAR_LIGHTING)
-		refractionDiffuseColor = Color::LinearToGamma(refractionDiffuseColor);
+#					else
+		refractionDiffuseColor = Color::LinearToGamma(Color::GammaToLinear(refractionDiffuseColor) * refractionDiffuseColorSkylight);
 #					endif
 #				endif
 	}
@@ -966,7 +966,8 @@ PS_OUTPUT main(PS_INPUT input)
 #				endif
 #			endif
 	psout.Lighting = saturate(float4(Color::Output(finalColor), isSpecular));
-	//psout.Lighting.xyz = DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz;
+	//psout.Lighting.xyz = Color::Output(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz);
+
 #		endif
 
 #		if defined(STENCIL)

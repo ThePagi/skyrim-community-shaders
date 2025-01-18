@@ -28,7 +28,7 @@ Texture2D<half4> SsgiYTexture : register(t6);
 Texture2D<half2> SsgiCoCgTexture : register(t7);
 #endif
 
-RWTexture2D<half3> MainRW : register(u0);
+RWTexture2D<float3> MainRW : register(u0);
 #if defined(SSGI)
 RWTexture2D<half3> DiffuseAmbientRW : register(u1);
 void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
@@ -52,7 +52,7 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 	half3 normalGlossiness = NormalRoughnessTexture[dispatchID.xy];
 	half3 normalVS = GBuffer::DecodeNormal(normalGlossiness.xy);
-
+	
 	half3 diffuseColor = MainRW[dispatchID.xy];
 	half3 albedo = AlbedoTexture[dispatchID.xy];
 	half3 masks2 = Masks2Texture[dispatchID.xy];
@@ -63,9 +63,12 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 	half3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, half4(normalWS, 1.0));
 
+	//MainRW[dispatchID.xy] =  Color::LinearToGamma(diffuseColor );
+	//return;
+
 #if defined(LINEAR_LIGHTING)
 	half3 linAlbedo = albedo;
-	half3 linDirectionalAmbientColor = Color::Light(directionalAmbientColor);
+	half3 linDirectionalAmbientColor = Color::Tint(directionalAmbientColor)*(Color::AlbedoPreMult*lerp(1, Math::PI, pbrWeight)); //no TRUE_PBR define in here
 	half3 linDiffuseColor = diffuseColor;
 
 	half3 linAmbient = linAlbedo * linDirectionalAmbientColor;
@@ -131,7 +134,7 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 	linAmbient *= visibility;
 
 #if defined(LINEAR_LIGHTING)
-	diffuseColor = linDiffuseColor + linAmbient;
+	diffuseColor = Color::LinearToGamma(linDiffuseColor + linAmbient); // temporarily because the buffer doesnt work well with linear?
 #else
 	diffuseColor = Color::LinearToGamma(linDiffuseColor);
 	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::LightPreMult);

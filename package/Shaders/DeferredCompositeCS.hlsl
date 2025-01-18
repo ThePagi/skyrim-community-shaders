@@ -13,7 +13,7 @@ Texture2D<unorm half3> NormalRoughnessTexture : register(t2);
 Texture2D<unorm half3> MasksTexture : register(t3);
 Texture2D<unorm half3> Masks2Texture : register(t4);
 
-RWTexture2D<half3> MainRW : register(u0);
+RWTexture2D<float3> MainRW : register(u0);
 RWTexture2D<half4> NormalTAAMaskSpecularMaskRW : register(u1);
 RWTexture2D<half2> MotionVectorsRW : register(u2);
 
@@ -76,10 +76,17 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 	half3 normalGlossiness = NormalRoughnessTexture[dispatchID.xy];
 	half3 normalVS = GBuffer::DecodeNormal(normalGlossiness.xy);
 
+#if defined(LINEAR_LIGHTING)
+	half3 diffuseColor = Color::GammaToLinear(MainRW[dispatchID.xy]);
+#else
 	half3 diffuseColor = MainRW[dispatchID.xy];
+#endif
 	half3 specularColor = SpecularTexture[dispatchID.xy];
 	half3 albedo = AlbedoTexture[dispatchID.xy];
 	half3 masks2 = Masks2Texture[dispatchID.xy];
+
+	//MainRW[dispatchID.xy] = Color::LinearToGamma(specularColor);
+	//return;
 
 	half depth = DepthTexture[dispatchID.xy];
 	half4 positionWS = half4(2 * half2(uv.x, -uv.y + 1) - 1, depth, 1);
