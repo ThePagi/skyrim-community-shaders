@@ -83,7 +83,7 @@ namespace Color
 		return LinearToGamma(color);
 #	endif
 	}
-	
+
 #else
 
 	float3 Diffuse(float3 color)
@@ -108,8 +108,8 @@ namespace Color
 		return LinearToGamma(color);
 #	else
 		return color;
-#	endif	
-}
+#	endif
+	}
 #endif
 
 }

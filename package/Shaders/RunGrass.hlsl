@@ -677,10 +677,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	diffuseColor.xyz += transmissionColor;
 	specularColor.xyz += specularColorPBR;
-#if !defined(LINEAR_LIGHTING)
+#				if !defined(LINEAR_LIGHTING)
 	specularColor.xyz = Color::LinearToGamma(specularColor.xyz);
 	diffuseColor.xyz = Color::LinearToGamma(diffuseColor.xyz);
-#endif
+#				endif
 #			else
 
 #				if !defined(SSGI)
