@@ -80,8 +80,12 @@ namespace Color
 #	if defined(DEFERRED)
 		return color;
 #	else
-		return LinearToGamma(color);
+		return color;
+		//return LinearToGamma(color);
 #	endif
+	}
+	float3 LLToGamma(float3 color){
+		return LinearToGamma(color);
 	}
 	
 #else
@@ -110,6 +114,9 @@ namespace Color
 		return color;
 #	endif	
 }
+	float3 LLToGamma(float3 color){
+		return color;
+	}
 #endif
 
 }

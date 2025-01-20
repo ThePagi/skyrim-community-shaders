@@ -41,7 +41,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 albedo = AlbedoTex.Sample(AlbedoSampler, input.TexCoord);
 
 #	if defined(DIRECTIONALLIGHT)
-	float4 dirDiffuse = DirDiffuseTex.Sample(DirDiffuseSampler, input.TexCoord);
+	float4 dirDiffuse =  DirDiffuseTex.Sample(DirDiffuseSampler, input.TexCoord);
 	float4 dirSpecular = DirSpecularTex.Sample(DirSpecularSampler, input.TexCoord);
 #	else
 	float4 dirDiffuse = 0;
@@ -58,15 +58,16 @@ PS_OUTPUT main(PS_INPUT input)
 
 	float4 preFog = (diffuse * sao + shadowMask * dirDiffuse) * albedo +
 	                (specular * sao + dirSpecular * shadowMask);
+	//preFog.rgb = Color::LLToGamma(preFog.rgb);
 
 	float4 fog = FogTex.Sample(FogSampler, input.TexCoord);
+	//fog.rgb = Color::LLToGamma(fog.rgb);
 
 	if (fog.x + fog.y + fog.z + fog.w != 0) {
 		psout.Color = float4(FogNearColor.w * lerp(preFog.xyz, fog.xyz, fog.w), saturate(preFog.w));
 	} else {
 		psout.Color = preFog;
 	}
-
 	return psout;
 }
 #endif

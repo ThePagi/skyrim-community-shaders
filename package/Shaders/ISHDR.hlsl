@@ -64,7 +64,7 @@ PS_OUTPUT main(PS_INPUT input)
 		{
 			texCoord = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(texCoord);
 		}
-		float3 imageColor = ImageTex.Sample(ImageSampler, texCoord).xyz;
+		float3 imageColor = (ImageTex.Sample(ImageSampler, texCoord).xyz);
 #		if defined(RGB2LUM)
 		imageColor = Color::RGBToLuminance(imageColor);
 #		elif (defined(LUM) || defined(LUMCLAMP)) && !defined(DOWNADAPT)
@@ -84,18 +84,19 @@ PS_OUTPUT main(PS_INPUT input)
 	}
 	downsampledColor = max(asfloat(0x00800000), downsampledColor);  // Black screen fix
 #		endif
+
 	psout.Color = float4(downsampledColor, BlurScale.z);
 
 #	elif defined(BLEND)
 	float2 uv = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(input.TexCoord);
 
-	float3 inputColor = BlendTex.Sample(BlendSampler, uv).xyz;
+	float3 inputColor = (BlendTex.Sample(BlendSampler, uv).xyz);
 
 	float3 bloomColor = 0;
 	if (Flags.x > 0.5) {
-		bloomColor = ImageTex.Sample(ImageSampler, uv).xyz;
+		bloomColor = (ImageTex.Sample(ImageSampler, uv).xyz);
 	} else {
-		bloomColor = ImageTex.Sample(ImageSampler, input.TexCoord.xy).xyz;
+		bloomColor = (ImageTex.Sample(ImageSampler, input.TexCoord.xy).xyz);
 	}
 
 	float2 avgValue = AvgTex.Sample(AvgSampler, input.TexCoord.xy).xy;
@@ -105,7 +106,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 ppColor = 0.0;
 	{
 		inputColor *= avgValue.y / avgValue.x;
-		inputColor = max(0, inputColor);
 
 		float3 blendedColor;
 		[branch] if (Param.z > 0.5)

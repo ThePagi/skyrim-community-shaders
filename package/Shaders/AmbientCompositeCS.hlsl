@@ -134,7 +134,8 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 	linAmbient *= visibility;
 
 #if defined(LINEAR_LIGHTING)
-	diffuseColor = Color::LinearToGamma(linDiffuseColor + linAmbient); // temporarily because the buffer doesnt work well with linear?
+	//diffuseColor = Color::LinearToGamma(linDiffuseColor + linAmbient); // temporarily because the buffer doesnt work well with linear?
+	diffuseColor = linDiffuseColor + linAmbient;
 #else
 	diffuseColor = Color::LinearToGamma(linDiffuseColor);
 	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::LightPreMult);

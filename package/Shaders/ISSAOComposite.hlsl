@@ -132,7 +132,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float2 screenPosition = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(input.TexCoord);
 	float ao = SAOTex.Sample(SAOSampler, screenPosition).x;
 	float4 sourceColor = sourceTex.SampleLevel(sourceSampler, screenPosition, 0);
-
 	float4 composedColor = sourceColor;
 
 	if (0.5 < SSRParams.z) {
@@ -159,9 +158,13 @@ PS_OUTPUT main(PS_INPUT input)
 	if (EyePosition.w != 0 && 1e-5 < snowMask) {
 		ao = min(1, SparklesParameters3.x + ao);
 	}
+#if defined(LINEAR_LIGHTING)
+	composedColor.xyz *= ao;
+#else
 	composedColor.xyz = Color::GammaToLinear(composedColor.xyz);
 	composedColor.xyz *= pow(ao, 1.5);
 	composedColor.xyz = Color::LinearToGamma(composedColor.xyz);
+#endif
 #	endif
 
 	float depth = depthTex.SampleLevel(depthSampler, screenPosition, 0).x;
@@ -169,7 +172,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(APPLY_FOG)
 	float fogDistanceFactor = (2 * CameraNearFar.x * CameraNearFar.y) / ((CameraNearFar.y + CameraNearFar.x) - (2 * (1.01 * depth - 0.01) - 1) * (CameraNearFar.y - CameraNearFar.x));
 	float fogFactor = min(FogParam.w, pow(saturate(fogDistanceFactor * FogParam.y - FogParam.x), FogParam.z));
-	float3 fogColor = lerp(FogNearColor.xyz, FogFarColor.xyz, fogFactor);
+	float3 fogColor = lerp(Color::Tint(FogNearColor.xyz), Color::Tint(FogFarColor.xyz), fogFactor);
 	if (depth < 0.999999) {
 		composedColor.xyz = FogNearColor.w * lerp(composedColor.xyz, fogColor, fogFactor);
 	}
@@ -204,6 +207,7 @@ PS_OUTPUT main(PS_INPUT input)
 	composedColor *= 1 - SparklesParameters2.w;
 	composedColor += sparklesColor;
 #	endif
+	composedColor.rgb = Color::LLToGamma(composedColor.rgb);
 
 	psout.Color = composedColor;
 
