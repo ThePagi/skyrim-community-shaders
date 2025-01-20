@@ -8,7 +8,6 @@
 #include "Common/SharedData.hlsli"
 #include "Common/Skinned.hlsli"
 
-
 #if defined(FACEGEN) || defined(FACEGEN_RGB_TINT)
 #	define SKIN
 #endif
@@ -2525,9 +2524,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			else
 		diffuseColor = 1.0;
 #			endif
-#		if !defined(LINEAR_LIGHTING)
+#			if !defined(LINEAR_LIGHTING)
 		specularColor = Color::GammaToLinear(specularColor);
-#		endif
+#			endif
 	}
 #		endif
 
@@ -2544,9 +2543,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #		if defined(DYNAMIC_CUBEMAPS) && !defined(LINEAR_LIGHTING)
 	if (dynamicCubemap)
-#		if !defined(LINEAR_LIGHTING)
+#			if !defined(LINEAR_LIGHTING)
 		specularColor = Color::LinearToGamma(specularColor);
-#		endif
+#			endif
 #		endif
 #	endif
 
@@ -2692,10 +2691,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		psout.Diffuse.xyz = color.xyz;
 	}
 #	else
-	psout.Diffuse.xyz = Color::Output(color.xyz); //------------------------------------------
-	#if defined(LODLANDNOISE)
-	//psout.Diffuse.xyz = 1;
-	#endif
+	psout.Diffuse.xyz = Color::Output(color.xyz);  //------------------------------------------
+#		if defined(LODLANDNOISE)
+//psout.Diffuse.xyz = 1;
+#		endif
 #	endif  // defined(LIGHT_LIMIT_FIX)
 
 #	if defined(SNOW)
