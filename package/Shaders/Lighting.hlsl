@@ -2693,7 +2693,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	else
 	psout.Diffuse.xyz = Color::Output(color.xyz);  //------------------------------------------
 #		if defined(LODLANDNOISE)
-//psout.Diffuse.xyz = 1;
+												   //psout.Diffuse.xyz = 1;
 #		endif
 #	endif  // defined(LIGHT_LIMIT_FIX)
 

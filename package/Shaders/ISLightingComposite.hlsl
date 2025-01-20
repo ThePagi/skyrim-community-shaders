@@ -41,7 +41,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 albedo = AlbedoTex.Sample(AlbedoSampler, input.TexCoord);
 
 #	if defined(DIRECTIONALLIGHT)
-	float4 dirDiffuse =  DirDiffuseTex.Sample(DirDiffuseSampler, input.TexCoord);
+	float4 dirDiffuse = DirDiffuseTex.Sample(DirDiffuseSampler, input.TexCoord);
 	float4 dirSpecular = DirSpecularTex.Sample(DirSpecularSampler, input.TexCoord);
 #	else
 	float4 dirDiffuse = 0;

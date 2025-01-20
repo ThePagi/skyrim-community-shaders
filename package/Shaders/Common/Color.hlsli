@@ -84,10 +84,11 @@ namespace Color
 		//return LinearToGamma(color);
 #	endif
 	}
-	float3 LLToGamma(float3 color){
+	float3 LLToGamma(float3 color)
+	{
 		return LinearToGamma(color);
 	}
-	
+
 #else
 
 	float3 Diffuse(float3 color)
@@ -112,9 +113,10 @@ namespace Color
 		return LinearToGamma(color);
 #	else
 		return color;
-#	endif	
-}
-	float3 LLToGamma(float3 color){
+#	endif
+	}
+	float3 LLToGamma(float3 color)
+	{
 		return color;
 	}
 #endif
