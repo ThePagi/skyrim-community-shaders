@@ -38,9 +38,9 @@ cbuffer PerFrameSSS : register(b1)
 	bool humanProfile = MaskTexture[DTid.xy].y == sssAmount;
 
 	float4 color = SSSSBlurCS(DTid.xy, texCoord, float2(0.0, 1.0), sssAmount, humanProfile);
-#if !defined(LINEAR_LIGHTING)
+#	if !defined(LINEAR_LIGHTING)
 	color.rgb = Color::LinearToGamma(color.rgb);
-#endif
+#	endif
 	SSSRW[DTid.xy] = float4(color.rgb, 1.0);
 
 #endif

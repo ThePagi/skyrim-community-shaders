@@ -240,7 +240,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color.w = input.TexCoord2.x * (baseColor.w * input.Color.w);
 #		else
 	psout.Color.w = input.Color.w * baseColor.w;
-	psout.Color.xyz = input.Color.xyz * baseColor.xyz + yyy; // converting the input color here makes sun transparent
+	psout.Color.xyz = input.Color.xyz * baseColor.xyz + yyy;  // converting the input color here makes sun transparent
 #		endif
 
 #	else

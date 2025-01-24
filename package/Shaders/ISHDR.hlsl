@@ -64,7 +64,7 @@ PS_OUTPUT main(PS_INPUT input)
 		{
 			texCoord = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(texCoord);
 		}
-		float3 imageColor = (ImageTex.Sample(ImageSampler, texCoord).xyz); 
+		float3 imageColor = (ImageTex.Sample(ImageSampler, texCoord).xyz);
 #		if defined(RGB2LUM)
 		imageColor = Color::RGBToLuminance(imageColor);
 #		elif (defined(LUM) || defined(LUMCLAMP)) && !defined(DOWNADAPT)
@@ -119,9 +119,9 @@ PS_OUTPUT main(PS_INPUT input)
 			float3 compressedHuePreserving = inputColor * mappedMax / maxCol;
 			blendedColor = compressedHuePreserving;
 		}
-		#if defined(LINEAR_LIGHTING)
-		bloomColor *= 0.016; // workaround to reduce extreme bloom until bloom shader can be fixed for linear
-		#endif
+#		if defined(LINEAR_LIGHTING)
+		bloomColor *= 0.016;  // workaround to reduce extreme bloom until bloom shader can be fixed for linear
+#		endif
 		blendedColor += saturate(Param.x - blendedColor) * bloomColor;
 		//blendedColor = Param.x;
 

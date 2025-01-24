@@ -544,13 +544,13 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 		sh2 skylightingSH = Skylighting::sampleNoBias(SharedData::skylightingSettings, Skylighting::SkylightingProbeArray, positionMSSkylight);
 		float skylighting = SphericalHarmonics::Unproject(skylightingSH, float3(0, 0, 1));
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(worldPosition));
-#		if !defined(LINEAR_LIGHTING)
+#			if !defined(LINEAR_LIGHTING)
 		color = Color::GammaToLinear(color);
-#		endif
+#			endif
 		color *= Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
-#		if !defined(LINEAR_LIGHTING)
+#			if !defined(LINEAR_LIGHTING)
 		color = Color::LinearToGamma(color);
-#		endif
+#			endif
 #		endif
 
 		color += dirLightColor * ShadowSampling::GetEffectShadow(worldPosition, normalize(worldPosition), screenPosition, eyeIndex);
@@ -565,13 +565,13 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 		sh2 skylightingSH = Skylighting::sampleNoBias(SharedData::skylightingSettings, Skylighting::SkylightingProbeArray, positionMSSkylight);
 		float skylighting = SphericalHarmonics::Unproject(skylightingSH, float3(0, 0, 1));
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(worldPosition));
-#		if !defined(LINEAR_LIGHTING)
+#			if !defined(LINEAR_LIGHTING)
 		color = Color::GammaToLinear(color);
-#		endif
+#			endif
 		color *= Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
-#		if !defined(LINEAR_LIGHTING)
+#			if !defined(LINEAR_LIGHTING)
 		color = Color::LinearToGamma(color);
-#		endif
+#			endif
 #		endif
 	}
 
@@ -694,11 +694,11 @@ PS_OUTPUT main(PS_INPUT input)
 	{
 		baseTexColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
 #	if defined(TEXTURE)
-		#if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
+#		if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
 		[branch] if (!(Permutation::PixelShaderDescriptor & Permutation::EffectFlags::GrayscaleToColor))
-			baseTexColor.rgb = Color::Tint(baseTexColor.rgb*Color::AlbedoPreMult);
+			baseTexColor.rgb = Color::Tint(baseTexColor.rgb * Color::AlbedoPreMult);
 		else
-		#endif
+#		endif
 			baseTexColor.rgb = Color::Diffuse(baseTexColor.rgb);
 #	endif
 		baseColor *= baseTexColor;
@@ -790,7 +790,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 blendedColor = lightColor.xyz;
 #	endif
 
-	float4 finalColor = float4(blendedColor, Color::Tint(alpha).x); // the linear alpha helps the fadeout
+	float4 finalColor = float4(blendedColor, Color::Tint(alpha).x);  // the linear alpha helps the fadeout
 #	if defined(MULTBLEND_DECAL)
 	finalColor.xyz *= alpha;
 #	else
