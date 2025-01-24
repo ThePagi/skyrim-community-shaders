@@ -963,6 +963,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Lighting = saturate(float4(Color::Output(finalColor), isSpecular));
 	//psout.Lighting.xyz = Color::Output(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz);
 #			endif
+#		endif
 
 #			if defined(STENCIL)
 	float3 viewDirection = normalize(input.WorldPosition.xyz);
