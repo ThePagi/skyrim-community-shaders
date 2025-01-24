@@ -965,7 +965,7 @@ PS_OUTPUT main(PS_INPUT input)
 #			endif
 #		endif
 
-#			if defined(STENCIL)
+#		if defined(STENCIL)
 	float3 viewDirection = normalize(input.WorldPosition.xyz);
 	float3 normal =
 		normalize(cross(ddx_coarse(input.WorldPosition.xyz), ddy_coarse(input.WorldPosition.xyz)));
@@ -973,11 +973,11 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.WaterMask = float4(0, 0, VdotN, 0);
 
 	psout.MotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition);
-#			endif
+#		endif
 
 	return psout;
 }
 
-#		endif
-
 #	endif
+
+#endif
