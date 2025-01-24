@@ -169,7 +169,9 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 		finalIrradiance = finalIrradiance * skylightingSpecular + lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
 #	else
 		half3 specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
+#		if !defined(LINEAR_LIGHTING)
 		specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
+#		endif
 
 		finalIrradiance += specularIrradianceReflections;
 #	endif

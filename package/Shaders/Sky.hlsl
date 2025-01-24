@@ -98,7 +98,7 @@ VS_OUTPUT main(VS_INPUT input)
 
 	vsout.TexCoord0.xy = input.TexCoord;
 	vsout.TexCoord2.x = saturate((1.0 / 17.0) * eyeHeightDelta);
-	vsout.Color.xyz = Color::Tint(BlendColor[0].xyz) * VParams;
+	vsout.Color.xyz = BlendColor[0].xyz * VParams;
 	vsout.Color.w = BlendColor[0].w;
 
 #	else  // MOONMASK HORIZFADE
@@ -125,8 +125,8 @@ VS_OUTPUT main(VS_INPUT input)
 	vsout.TexCoord1.xy = TexCoordOff + input.TexCoord;
 #		endif  // TEXLERP
 
-	float3 skyColor = Color::Tint(BlendColor[0].xyz) * input.Color.xxx + Color::Tint(BlendColor[1].xyz) * input.Color.yyy +
-	                  Color::Tint(BlendColor[2].xyz) * input.Color.zzz;
+	float3 skyColor = BlendColor[0].xyz * input.Color.xxx + BlendColor[1].xyz * input.Color.yyy +
+	                  BlendColor[2].xyz * input.Color.zzz;
 
 	vsout.Color.xyz = VParams * skyColor;
 	vsout.Color.w = BlendColor[0].w * input.Color.w;
@@ -203,7 +203,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	ifndef OCCLUSION
 #		ifndef TEXLERP
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
-	baseColor.rgb = Color::Tint(baseColor.rgb);
+	baseColor.rgb = Color::Diffuse(baseColor.rgb);
 #			ifdef TEXFADE
 	baseColor.w *= PParams.x;
 #			endif
@@ -211,7 +211,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 blendColor = TexBlendSampler.Sample(SampBlendSampler, input.TexCoord1.xy);
 	blendColor.rgb = Color::Tint(blendColor.rgb);
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
-	baseColor.rgb = Color::Tint(baseColor.rgb);
+	baseColor.rgb = Color::Diffuse(baseColor.rgb);
 	baseColor = PParams.xxxx * (-baseColor + blendColor) + baseColor;
 #		endif
 
@@ -221,10 +221,10 @@ PS_OUTPUT main(PS_INPUT input)
 		TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
 
 #			ifdef TEX
-	psout.Color.xyz = (input.Color.xyz * baseColor.xyz + yyy) + noiseGrad;
+	psout.Color.xyz = (Color::Tint(input.Color.xyz) * baseColor.xyz + yyy) + noiseGrad;
 	psout.Color.w = baseColor.w * input.Color.w;
 #			else
-	psout.Color.xyz = (yyy + input.Color.xyz) + noiseGrad;
+	psout.Color.xyz = (yyy + Color::Diffuse(input.Color.xyz)) + noiseGrad;
 	psout.Color.w = input.Color.w;
 #			endif  // TEX
 
@@ -240,7 +240,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color.w = input.TexCoord2.x * (baseColor.w * input.Color.w);
 #		else
 	psout.Color.w = input.Color.w * baseColor.w;
-	psout.Color.xyz = input.Color.xyz * baseColor.xyz + yyy;
+	psout.Color.xyz = input.Color.xyz * baseColor.xyz + yyy; // converting the input color here makes sun transparent
 #		endif
 
 #	else

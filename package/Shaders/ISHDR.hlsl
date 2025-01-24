@@ -64,7 +64,7 @@ PS_OUTPUT main(PS_INPUT input)
 		{
 			texCoord = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(texCoord);
 		}
-		float3 imageColor = (ImageTex.Sample(ImageSampler, texCoord).xyz);
+		float3 imageColor = (ImageTex.Sample(ImageSampler, texCoord).xyz); 
 #		if defined(RGB2LUM)
 		imageColor = Color::RGBToLuminance(imageColor);
 #		elif (defined(LUM) || defined(LUMCLAMP)) && !defined(DOWNADAPT)
@@ -79,24 +79,24 @@ PS_OUTPUT main(PS_INPUT input)
 	} else {
 		float2 adaptDelta = downsampledColor.xy - adaptValue;
 		downsampledColor.xy =
-			sign(adaptDelta) * clamp(abs(Param.wz * adaptDelta), 0.00390625, abs(adaptDelta)) +
+			sign(adaptDelta) * clamp(abs(Param.wz * adaptDelta), Color::LLToGamma(0.00390625), abs(adaptDelta)) +
 			adaptValue;
 	}
 	downsampledColor = max(asfloat(0x00800000), downsampledColor);  // Black screen fix
 #		endif
 
-	psout.Color = float4(downsampledColor, BlurScale.z);
+	psout.Color = float4((downsampledColor), BlurScale.z);
 
 #	elif defined(BLEND)
 	float2 uv = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(input.TexCoord);
 
-	float3 inputColor = (BlendTex.Sample(BlendSampler, uv).xyz);
+	float3 inputColor = Color::LLToGamma(BlendTex.Sample(BlendSampler, uv).xyz);
 
 	float3 bloomColor = 0;
 	if (Flags.x > 0.5) {
-		bloomColor = (ImageTex.Sample(ImageSampler, uv).xyz);
+		bloomColor = Color::Tint(ImageTex.Sample(ImageSampler, uv).xyz);
 	} else {
-		bloomColor = (ImageTex.Sample(ImageSampler, input.TexCoord.xy).xyz);
+		bloomColor = Color::Tint(ImageTex.Sample(ImageSampler, input.TexCoord.xy).xyz);
 	}
 
 	float2 avgValue = AvgTex.Sample(AvgSampler, input.TexCoord.xy).xy;
@@ -119,8 +119,11 @@ PS_OUTPUT main(PS_INPUT input)
 			float3 compressedHuePreserving = inputColor * mappedMax / maxCol;
 			blendedColor = compressedHuePreserving;
 		}
-
+		#if defined(LINEAR_LIGHTING)
+		bloomColor *= 0.016; // workaround to reduce extreme bloom until bloom shader can be fixed for linear
+		#endif
 		blendedColor += saturate(Param.x - blendedColor) * bloomColor;
+		//blendedColor = Param.x;
 
 		gameSdrColor = blendedColor;
 

@@ -29,7 +29,6 @@ cbuffer PerGeometry : register(b2)
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT psout;
-
 	float4 downsampledColor = 0;
 	float luminance = 0;
 	for (uint sampleIndex = 0; sampleIndex < asuint(SamplesCount); ++sampleIndex) {
@@ -61,7 +60,6 @@ PS_OUTPUT main(PS_INPUT input)
 		psout.Color = downsampledColor;
 	}
 #	endif
-
 	return psout;
 }
 #endif

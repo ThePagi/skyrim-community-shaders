@@ -256,8 +256,8 @@ VS_OUTPUT main(VS_INPUT input)
 	float fogColorParam = min(FogParam.w,
 		exp2(FogParam.z * log2(saturate(length(viewPos.xyz) * FogParam.y - FogParam.x))));
 
-	vsout.FogParam.xyz = lerp(FogNearColor.xyz, FogFarColor.xyz, fogColorParam);
-	vsout.FogParam.w = fogColorParam;
+	vsout.FogParam.xyz = lerp(Color::Tint(FogNearColor.xyz), Color::Tint(FogFarColor.xyz), fogColorParam);
+	vsout.FogParam.w = Color::Tint(fogColorParam).x;
 #	endif
 
 	float4 texCoord = float4(0, 0, 1, 0);
@@ -526,7 +526,7 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 	float4 lightDistanceSquared = (PLightPositionX[eyeIndex] - msPosition.xxxx) * (PLightPositionX[eyeIndex] - msPosition.xxxx) + (PLightPositionY[eyeIndex] - msPosition.yyyy) * (PLightPositionY[eyeIndex] - msPosition.yyyy) + (PLightPositionZ[eyeIndex] - msPosition.zzzz) * (PLightPositionZ[eyeIndex] - msPosition.zzzz);
 	float4 lightFadeMul = 1.0.xxxx - saturate(PLightingRadiusInverseSquared * lightDistanceSquared);
 
-	float3 color = DLightColor.xyz;
+	float3 color = Color::Light(DLightColor.xyz);
 
 	if ((Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::EffectShadows) && !SharedData::InMapMenu && !SharedData::InInterior) {
 		float3 dirLightColor = Color::Light(SharedData::DirLightColor) * 0.5;
@@ -544,9 +544,13 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 		sh2 skylightingSH = Skylighting::sampleNoBias(SharedData::skylightingSettings, Skylighting::SkylightingProbeArray, positionMSSkylight);
 		float skylighting = SphericalHarmonics::Unproject(skylightingSH, float3(0, 0, 1));
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(worldPosition));
+#		if !defined(LINEAR_LIGHTING)
 		color = Color::GammaToLinear(color);
+#		endif
 		color *= Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
+#		if !defined(LINEAR_LIGHTING)
 		color = Color::LinearToGamma(color);
+#		endif
 #		endif
 
 		color += dirLightColor * ShadowSampling::GetEffectShadow(worldPosition, normalize(worldPosition), screenPosition, eyeIndex);
@@ -561,9 +565,13 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 		sh2 skylightingSH = Skylighting::sampleNoBias(SharedData::skylightingSettings, Skylighting::SkylightingProbeArray, positionMSSkylight);
 		float skylighting = SphericalHarmonics::Unproject(skylightingSH, float3(0, 0, 1));
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(worldPosition));
+#		if !defined(LINEAR_LIGHTING)
 		color = Color::GammaToLinear(color);
+#		endif
 		color *= Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
+#		if !defined(LINEAR_LIGHTING)
 		color = Color::LinearToGamma(color);
+#		endif
 #		endif
 	}
 
@@ -598,7 +606,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 	float4 fogMul = 1;
 #	if !defined(MULTBLEND)
-	fogMul.xyz = Color::Tint(input.FogAlpha);
+	fogMul.xyzw = (input.FogAlpha).xxxx;
 #	endif
 
 #	if defined(MEMBRANE)
@@ -667,7 +675,7 @@ PS_OUTPUT main(PS_INPUT input)
 				float lightDist = length(lightDirection);
 				float intensityFactor = saturate(lightDist / light.radius);
 				float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-				float3 lightColor = light.color.xyz * intensityMultiplier * 0.5;
+				float3 lightColor = Color::Light(light.color.xyz) * intensityMultiplier * 0.5;
 				propertyColor += lightColor;
 			}
 		}
@@ -685,7 +693,14 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 	{
 		baseTexColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
-		baseTexColor.rgb = Color::Diffuse(baseTexColor.rgb);
+#	if defined(TEXTURE)
+		#if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
+		[branch] if (!(Permutation::PixelShaderDescriptor & Permutation::EffectFlags::GrayscaleToColor))
+			baseTexColor.rgb = Color::Tint(baseTexColor.rgb*Color::AlbedoPreMult);
+		else
+		#endif
+			baseTexColor.rgb = Color::Diffuse(baseTexColor.rgb);
+#	endif
 		baseColor *= baseTexColor;
 		if (Permutation::PixelShaderDescriptor & Permutation::EffectFlags::IgnoreTexAlpha || Permutation::PixelShaderDescriptor & Permutation::EffectFlags::GrayscaleToAlpha) {
 			baseColor.w = 1;
@@ -696,6 +711,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 baseColorMul = float4(1, 1, 1, 1);
 #	else
 	float4 baseColorMul = BaseColor;
+	baseColorMul.rgb = Color::Tint(baseColorMul.rgb);
 #		if defined(VC) && !defined(PROJECTED_UV)
 	baseColorMul *= float4(Color::Tint(input.Color.rgb), input.Color.a);
 #		endif
@@ -734,6 +750,9 @@ PS_OUTPUT main(PS_INPUT input)
 	alpha *= PropertyColor.w;
 
 	float baseColorScale = BaseColorScale.x;
+	//#if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
+	//baseColorScale = baseColorScale * Color::AlbedoPreMult;
+	//#endif
 
 #	if defined(MEMBRANE)
 	baseColor.xyz = (Color::Tint(PropertyColor.xyz) + baseColor.xyz) * alpha + membraneColor.xyz * membraneColor.w;
@@ -752,9 +771,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 		baseColor.xyz = baseColorScale * Color::Tint(TexGrayscaleSampler.Sample(SampGrayscaleSampler, grayscaleToColorUv).xyz);
 	}
-
 	float3 lightColor = lerp(baseColor.xyz, propertyColor * baseColor.xyz, lightingInfluence.xxx);
-
 #	if !defined(MOTIONVECTORS_NORMALS)
 	if (alpha * fogMul.w - AlphaTestRefRS < 0) {
 		discard;
@@ -767,13 +784,13 @@ PS_OUTPUT main(PS_INPUT input)
 #		elif defined(MULTBLEND) || defined(MULTBLEND_DECAL)
 	float3 blendedColor = lerp(lightColor, 1.0.xxx, saturate(1.5 * input.FogParam.w).xxx);
 #		else
-	float3 blendedColor = lerp(lightColor, Color::Tint(input.FogParam.xyz), input.FogParam.www);
+	float3 blendedColor = lerp(lightColor, input.FogParam.xyz, input.FogParam.www);
 #		endif
 #	else
 	float3 blendedColor = lightColor.xyz;
 #	endif
 
-	float4 finalColor = float4(blendedColor, alpha);
+	float4 finalColor = float4(blendedColor, Color::Tint(alpha).x); // the linear alpha helps the fadeout
 #	if defined(MULTBLEND_DECAL)
 	finalColor.xyz *= alpha;
 #	else

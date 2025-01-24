@@ -870,9 +870,13 @@ PS_OUTPUT main(PS_INPUT input)
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
+#		if !defined(LINEAR_LIGHTING)
 	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
+#		endif
 	directionalAmbientColor *= skylighting;
+#		if !defined(LINEAR_LIGHTING)
 	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
+#		endif
 #				endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;

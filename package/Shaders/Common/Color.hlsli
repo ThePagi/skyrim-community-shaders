@@ -55,6 +55,14 @@ namespace Color
 	}
 
 #if defined(LINEAR_LIGHTING)
+	float3 Light(float3 color)
+	{
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+		return GammaToLinear(color) * AlbedoPreMult * Math::PI;
+#	else
+		return GammaToLinear(color) * AlbedoPreMult;
+#	endif
+	}
 	float3 Diffuse(float3 color)
 	{
 #	if defined(TRUE_PBR)
@@ -67,20 +75,14 @@ namespace Color
 	{
 		return GammaToLinear(color);
 	}
-	float3 Light(float3 color)
-	{
-#	if defined(TRUE_PBR)
-		return GammaToLinear(color) * AlbedoPreMult * Math::PI;
-#	else
-		return GammaToLinear(color) * AlbedoPreMult;
-#	endif
-	}
+
 	float3 Output(float3 color)
 	{
 #	if defined(DEFERRED)
 		return color;
 #	else
 		return color;
+		//return 0.22;
 		//return LinearToGamma(color);
 #	endif
 	}

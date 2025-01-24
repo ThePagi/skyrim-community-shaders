@@ -88,10 +88,10 @@ float3 GetSamplingVector(uint3 ThreadID, in RWTexture2DArray<float4> OutputTextu
 		}
 	}
 
-	//color.rgb = Color::Tint(color.rgb);
 #if defined(REFLECTIONS)
 #	if defined(LINEAR_LIGHTING)
-	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
+	//idk why this LinearToGamma, something prolly borked elsewhere, but works
+	color.rgb = lerp(Color::LinearToGamma(color.rgb), ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb, saturate(mipLevel / 7.0));
 #	else
 	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
 #	endif

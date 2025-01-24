@@ -171,7 +171,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 #	if defined(APPLY_FOG)
 	float fogDistanceFactor = (2 * CameraNearFar.x * CameraNearFar.y) / ((CameraNearFar.y + CameraNearFar.x) - (2 * (1.01 * depth - 0.01) - 1) * (CameraNearFar.y - CameraNearFar.x));
-	float fogFactor = min(FogParam.w, pow(saturate(fogDistanceFactor * FogParam.y - FogParam.x), FogParam.z));
+	float fogFactor = Color::Tint(min(FogParam.w, pow(saturate(fogDistanceFactor * FogParam.y - FogParam.x), FogParam.z))).x;
 	float3 fogColor = lerp(Color::Tint(FogNearColor.xyz), Color::Tint(FogFarColor.xyz), fogFactor);
 	if (depth < 0.999999) {
 		composedColor.xyz = FogNearColor.w * lerp(composedColor.xyz, fogColor, fogFactor);
@@ -207,7 +207,7 @@ PS_OUTPUT main(PS_INPUT input)
 	composedColor *= 1 - SparklesParameters2.w;
 	composedColor += sparklesColor;
 #	endif
-	composedColor.rgb = Color::LLToGamma(composedColor.rgb);
+	//composedColor.rgb = Color::LLToGamma(composedColor.rgb);
 
 	psout.Color = composedColor;
 

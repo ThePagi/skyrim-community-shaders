@@ -717,7 +717,7 @@ DiffuseOutput GetWaterDiffuseColor(PS_INPUT input, float3 normal, float3 viewDir
 #				endif
 
 	float2 refractionUV = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(refractionUvRaw);
-	float3 refractionColor = Color::Tint(RefractionTex.Sample(RefractionSampler, refractionUV).xyz);
+	float3 refractionColor = (RefractionTex.Sample(RefractionSampler, refractionUV).xyz);
 	float3 refractionDiffuseColor = lerp(Color::Tint(ShallowColor.xyz), Color::Tint(DeepColor.xyz), distanceMul.y);
 
 	if (!(Permutation::PixelShaderDescriptor & Permutation::WaterFlags::Interior)) {
@@ -967,7 +967,6 @@ PS_OUTPUT main(PS_INPUT input)
 #			endif
 	psout.Lighting = saturate(float4(Color::Output(finalColor), isSpecular));
 	//psout.Lighting.xyz = Color::Output(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz);
-
 #		endif
 
 #		if defined(STENCIL)
