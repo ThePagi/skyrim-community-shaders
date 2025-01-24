@@ -956,15 +956,15 @@ PS_OUTPUT main(PS_INPUT input)
 	refractionColor = lerp(refractionColor, fogColor, fogFactor);
 
 	float3 finalColor = lerp(refractionColor, finalColorPreFog, diffuseOutput.refractionMul);
-#					endif
+#						endif
 
+#					endif
 #				endif
-#			endif
 	psout.Lighting = saturate(float4(Color::Output(finalColor), isSpecular));
 	//psout.Lighting.xyz = Color::Output(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz);
-#		endif
+#			endif
 
-#		if defined(STENCIL)
+#			if defined(STENCIL)
 	float3 viewDirection = normalize(input.WorldPosition.xyz);
 	float3 normal =
 		normalize(cross(ddx_coarse(input.WorldPosition.xyz), ddy_coarse(input.WorldPosition.xyz)));
@@ -972,11 +972,11 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.WaterMask = float4(0, 0, VdotN, 0);
 
 	psout.MotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition);
-#		endif
+#			endif
 
 	return psout;
 }
 
-#	endif
+#		endif
 
-#endif
+#	endif
