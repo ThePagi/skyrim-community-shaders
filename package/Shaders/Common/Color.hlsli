@@ -41,7 +41,8 @@ namespace Color
 			tmp - color.y);
 	}
 
-	const static float AlbedoPreMult = 1 / 1.7;                        // greater value -> brighter pbr
+	const static float AlbedoMult = 1.7;
+	const static float AlbedoPreMult = 1 / AlbedoMult;                        // greater value -> brighter pbr
 	const static float LightPreMult = 1 / (Math::PI * AlbedoPreMult);  // ensure 1/PI as product
 
 	float3 GammaToLinear(float3 color)
@@ -68,7 +69,7 @@ namespace Color
 #	if defined(TRUE_PBR)
 		return color;
 #	else
-		return GammaToLinear(color) * 1.7;
+		return GammaToLinear(color) * AlbedoMult;
 #	endif
 	}
 	float3 Tint(float3 color)
@@ -89,6 +90,9 @@ namespace Color
 	float3 LLToGamma(float3 color)
 	{
 		return LinearToGamma(color);
+	}
+	float3 VanillaToPBR(float3 color){
+		return GammaToLinear(color) * AlbedoMult;
 	}
 
 #else
@@ -119,6 +123,9 @@ namespace Color
 	}
 	float3 LLToGamma(float3 color)
 	{
+		return color;
+	}
+	float3 VanillaToPBR(float3 color){
 		return color;
 	}
 #endif

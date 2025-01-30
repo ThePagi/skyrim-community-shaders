@@ -1297,7 +1297,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	if defined(TRUE_PBR) && defined(LANDSCAPE)
 		[branch] if ((PBRFlags & PBR::TerrainFlags::LandTile0PBR) == 0)
 		{
-			rawBaseColor.rgb = Color::GammaToLinear(rawBaseColor.rgb) / Color::AlbedoPreMult;
+			rawBaseColor.rgb = Color::VanillaToPBR(rawBaseColor.rgb);
 		}
 #	endif
 		baseColor = rawBaseColor;
@@ -1408,7 +1408,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		}
 		else
 		{
-			landColor2.rgb = Color::GammaToLinear(landColor2.rgb) / Color::AlbedoPreMult;
+			landColor2.rgb = Color::VanillaToPBR(landColor2.rgb);
 			rawRMAOS += input.LandBlendWeights1.y * float4(1 - landNormal2.w, 0, 1, 0.04);
 		}
 #		endif
@@ -1437,7 +1437,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		}
 		else
 		{
-			landColor3.rgb = Color::GammaToLinear(landColor3.rgb) / Color::AlbedoPreMult;
+			landColor3.rgb = Color::VanillaToPBR(landColor3.rgb);
 			rawRMAOS += input.LandBlendWeights1.z * float4(1 - landNormal3.w, 0, 1, 0.04);
 		}
 #		endif
@@ -1466,7 +1466,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		}
 		else
 		{
-			landColor4.rgb = Color::GammaToLinear(landColor4.rgb) / Color::AlbedoPreMult;
+			landColor4.rgb = Color::VanillaToPBR(landColor4.rgb);
 			rawRMAOS += input.LandBlendWeights1.w * float4(1 - landNormal4.w, 0, 1, 0.04);
 		}
 #		endif
@@ -1495,7 +1495,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		}
 		else
 		{
-			landColor5.rgb = Color::GammaToLinear(landColor5.rgb) / Color::AlbedoPreMult;
+			landColor5.rgb = Color::VanillaToPBR(landColor5.rgb);
 			rawRMAOS += input.LandBlendWeights2.x * float4(1 - landNormal5.w, 0, 1, 0.04);
 		}
 #		endif
@@ -1524,7 +1524,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		}
 		else
 		{
-			landColor6.rgb = Color::GammaToLinear(landColor6.rgb) / Color::AlbedoPreMult;
+			landColor6.rgb = Color::VanillaToPBR(landColor6.rgb);
 			rawRMAOS += input.LandBlendWeights2.y * float4(1 - landNormal6.w, 0, 1, 0.04);
 		}
 #		endif
@@ -1534,7 +1534,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		if defined(LOD_LAND_BLEND)
 	float4 lodLandColor = TexLandLodBlend1Sampler.Sample(SampLandLodBlend1Sampler, input.TexCoord0.zw);
 #			if defined(TRUE_PBR)
-	lodLandColor.rgb = Color::GammaToLinear(lodLandColor.rgb) / Color::AlbedoPreMult;
+	lodLandColor.rgb = Color::VanillaToPBR(lodLandColor.rgb);
 #			else
 	lodLandColor.rgb = Color::Diffuse(lodLandColor.rgb);
 #			endif
