@@ -395,9 +395,6 @@ struct PS_OUTPUT
 	float4 Reflectance : SV_Target5;
 	float4 Masks : SV_Target6;
 	float4 Parameters : SV_Target7;
-#	if defined(TERRAIN_BLENDING)
-	float Depth : SV_Depth;
-#	endif
 };
 #else
 struct PS_OUTPUT
@@ -951,6 +948,10 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		define EMAT
 #	endif
 
+#	if defined(EMAT) && (defined(ENVMAP) || defined(MULTI_LAYER_PARALLAX) || defined(EYE))
+#		define EMAT_ENVMAP
+#	endif
+
 #	if defined(DYNAMIC_CUBEMAPS)
 #		include "DynamicCubemaps/DynamicCubemaps.hlsli"
 #	endif
@@ -1039,18 +1040,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif
 
 #	if defined(TERRAIN_BLENDING)
-	float depthSampled = TerrainBlending::GetTerrainOffsetDepth(screenUV, eyeIndex);
-	float depthComp = input.Position.z - depthSampled;
+	float depthSampled = TerrainBlending::TerrainBlendingMaskTexture[input.Position.xy];
 
 	float depthSampledLinear = SharedData::GetScreenDepth(depthSampled);
 	float depthPixelLinear = SharedData::GetScreenDepth(input.Position.z);
 
-	float blendFactorTerrain = saturate((depthSampledLinear - depthPixelLinear) / 5.0);
+	float blendFactorTerrain = saturate((depthSampledLinear - depthPixelLinear) / 4.0);
 
 	if (input.Position.z == depthSampled)
 		blendFactorTerrain = 1;
 
-	clip(blendFactorTerrain);
 	blendFactorTerrain = saturate(blendFactorTerrain);
 #	endif
 
@@ -1077,14 +1076,49 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	DisplacementParams displacementParams[6];
 	displacementParams[0].DisplacementScale = 1.f;
 	displacementParams[0].DisplacementOffset = 0.f;
-	displacementParams[0].HeightScale = 1.f;
+	displacementParams[0].HeightScale = 1;
+	displacementParams[0].FlattenAmount = 0;
 #		else
 	DisplacementParams displacementParams;
 	displacementParams.DisplacementScale = 1.f;
 	displacementParams.DisplacementOffset = 0.f;
-	displacementParams.HeightScale = 1.f;
+	displacementParams.HeightScale = 1;
+	displacementParams.FlattenAmount = 0;
 #		endif
 
+#	endif
+
+	float curvature = 0;
+	float normalSmoothness = 0;
+
+#	if !defined(MODELSPACENORMALS)
+	float3 vertexNormal = tbnTr[2];
+	float3 worldSpaceVertexNormal = vertexNormal;
+
+#		if !defined(DRAW_IN_WORLDSPACE)
+	[flatten] if (!input.WorldSpace)
+		worldSpaceVertexNormal = normalize(mul(input.World[eyeIndex], float4(worldSpaceVertexNormal, 0)));
+#		endif
+#		if defined(EMAT)
+
+	if (SharedData::extendedMaterialSettings.EnableParallaxWarpingFix) {
+		float3 ndx = ddx(worldSpaceVertexNormal);
+		float3 ndy = ddy(worldSpaceVertexNormal);
+		float3 fdx = ddx(input.WorldPosition.xyz);
+		float3 fdy = ddy(input.WorldPosition.xyz);
+		float fragSize = rcp(length(max(abs(fdx), abs(fdy))));
+		curvature = pow(length(max(abs(ndx), abs(ndy))) * fragSize, 0.5);
+		float3 flatWorldNormal = normalize(-cross(ddx(input.WorldPosition.xyz), ddy(input.WorldPosition.xyz)));
+		normalSmoothness = (1 - dot(worldSpaceVertexNormal, flatWorldNormal));
+#			if defined(LANDSCAPE)
+		displacementParams[0].HeightScale = saturate(1 - curvature);
+		displacementParams[0].FlattenAmount = (normalSmoothness + curvature);
+#			else
+		displacementParams.HeightScale = saturate(1 - curvature);
+		displacementParams.FlattenAmount = (normalSmoothness + curvature);
+#			endif
+	}
+#		endif
 #	endif
 
 	float3 entryNormal = 0;
@@ -1103,10 +1137,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #		endif  // PARALLAX
 
-#		if defined(ENVMAP)
 	bool complexMaterial = false;
 	bool complexMaterialParallax = false;
 	float4 complexMaterialColor = 1.0;
+
+#		if defined(EMAT_ENVMAP)
 
 	if (SharedData::extendedMaterialSettings.EnableComplexMaterial) {
 		float envMaskTest = TexEnvMaskSampler.SampleLevel(SampEnvMaskSampler, uv, 15).w;
@@ -1132,9 +1167,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	[branch] if (SharedData::extendedMaterialSettings.EnableParallax && (PBRFlags & PBR::Flags::HasDisplacement) != 0)
 	{
 		PBRParallax = true;
-		displacementParams.HeightScale = PBRParams1.y;
 		[branch] if ((PBRFlags & PBR::Flags::InterlayerParallax) != 0)
 		{
+			displacementParams.HeightScale = PBRParams1.y;
 			displacementParams.DisplacementScale = 0.5;
 			displacementParams.DisplacementOffset = -0.25;
 			eta = (1 - sqrt(MultiLayerParallaxData.y)) / (1 + sqrt(MultiLayerParallaxData.y));
@@ -1149,6 +1184,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			entryNormal = normalize(mul(tbn, entryNormalTS));
 			refractedViewDirection = -refract(-viewDirection, entryNormal, eta);
 			refractedViewDirectionWS = normalize(mul(input.World[eyeIndex], float4(refractedViewDirection, 0)));
+		}
+		else
+		{
+			displacementParams.HeightScale *= PBRParams1.y;
 		}
 		mipLevel = ExtendedMaterials::GetMipLevel(uv, TexParallaxSampler);
 		uv = ExtendedMaterials::GetParallaxCoords(viewPosition.z, uv, mipLevel, refractedViewDirection, tbnTr, screenNoise, TexParallaxSampler, SampParallaxSampler, 0, displacementParams, pixelOffset);
@@ -1206,12 +1245,12 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		displacementParams[4] = displacementParams[0];
 		displacementParams[5] = displacementParams[0];
 #			if defined(TRUE_PBR)
-		displacementParams[0].HeightScale = PBRParams1.y;
-		displacementParams[1].HeightScale = LandscapeTexture2PBRParams.y;
-		displacementParams[2].HeightScale = LandscapeTexture3PBRParams.y;
-		displacementParams[3].HeightScale = LandscapeTexture4PBRParams.y;
-		displacementParams[4].HeightScale = LandscapeTexture5PBRParams.y;
-		displacementParams[5].HeightScale = LandscapeTexture6PBRParams.y;
+		displacementParams[0].HeightScale *= PBRParams1.y;
+		displacementParams[1].HeightScale *= LandscapeTexture2PBRParams.y;
+		displacementParams[2].HeightScale *= LandscapeTexture3PBRParams.y;
+		displacementParams[3].HeightScale *= LandscapeTexture4PBRParams.y;
+		displacementParams[4].HeightScale *= LandscapeTexture5PBRParams.y;
+		displacementParams[5].HeightScale *= LandscapeTexture6PBRParams.y;
 #			endif
 
 		float weights[6];
@@ -1328,7 +1367,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #	endif  // LANDSCAPE
 
-#	if defined(EMAT) && defined(ENVMAP)
+#	if defined(EMAT_ENVMAP)
 	complexMaterial = complexMaterial && complexMaterialColor.y > (4.0 / 255.0) && (complexMaterialColor.y < (1.0 - (4.0 / 255.0)));
 	shininess = lerp(shininess, shininess * complexMaterialColor.y, complexMaterial);
 	float3 complexSpecular = lerp(1.0, lerp(1.0, baseColor.xyz, complexMaterialColor.z), complexMaterial);
@@ -1644,6 +1683,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		worldSpaceNormal = normalize(mul(input.World[eyeIndex], float4(worldSpaceNormal, 0)));
 #	endif
 
+#	if defined(MODELSPACENORMALS)
+	float3 worldSpaceVertexNormal = worldSpaceNormal;
+#	endif
+
 	float3 screenSpaceNormal = normalize(FrameBuffer::WorldToView(worldSpaceNormal, false, eyeIndex));
 
 #	if defined(TRUE_PBR)
@@ -1741,18 +1784,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float pbrWeight = 1;
 	float pbrGlossiness = 1 - pbrSurfaceProperties.Roughness;
 #	endif  // TRUE_PBR
-
-#	if !defined(MODELSPACENORMALS)
-	float3 vertexNormal = tbnTr[2];
-	float3 worldSpaceVertexNormal = vertexNormal;
-
-#		if !defined(DRAW_IN_WORLDSPACE)
-	[flatten] if (!input.WorldSpace)
-		worldSpaceVertexNormal = normalize(mul(input.World[eyeIndex], float4(worldSpaceVertexNormal, 0)));
-#		endif
-#	else
-	float3 worldSpaceVertexNormal = worldSpaceNormal;
-#	endif
 
 	float porosity = 1.0;
 
@@ -1959,7 +1990,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		elif defined(PARALLAX)
 			[branch] if (SharedData::extendedMaterialSettings.EnableParallax)
 				parallaxShadow = ExtendedMaterials::GetParallaxSoftShadowMultiplier(uv, mipLevel, dirLightDirectionTS, sh0, TexParallaxSampler, SampParallaxSampler, 0, lerp(parallaxShadowQuality, 1.0, SharedData::extendedMaterialSettings.ExtendShadows), screenNoise, displacementParams);
-#		elif defined(ENVMAP)
+#		elif defined(EMAT_ENVMAP)
 			[branch] if (complexMaterialParallax)
 				parallaxShadow = ExtendedMaterials::GetParallaxSoftShadowMultiplier(uv, mipLevel, dirLightDirectionTS, sh0, TexEnvMaskSampler, SampEnvMaskSampler, 3, lerp(parallaxShadowQuality, 1.0, SharedData::extendedMaterialSettings.ExtendShadows), screenNoise, displacementParams);
 #		elif defined(TRUE_PBR) && !defined(LODLANDSCAPE)
@@ -2211,7 +2242,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #				elif defined(LANDSCAPE)
 			[branch] if (SharedData::extendedMaterialSettings.EnableTerrainParallax)
 				parallaxShadow = ExtendedMaterials::GetParallaxSoftShadowMultiplierTerrain(input, uv, mipLevels, lightDirectionTS, sh0, parallaxShadowQuality, screenNoise, displacementParams);
-#				elif defined(ENVMAP)
+#				elif defined(EMAT_ENVMAP)
 			[branch] if (complexMaterialParallax)
 				parallaxShadow = ExtendedMaterials::GetParallaxSoftShadowMultiplier(uv, mipLevel, lightDirectionTS, sh0, TexEnvMaskSampler, SampEnvMaskSampler, 3, parallaxShadowQuality, screenNoise, displacementParams);
 #				elif defined(TRUE_PBR) && !defined(LODLANDSCAPE)
@@ -2334,74 +2365,80 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif
 
 #	if defined(ENVMAP) || defined(MULTI_LAYER_PARALLAX) || defined(EYE)
-	float envMaskColor = TexEnvMaskSampler.Sample(SampEnvMaskSampler, uv).x;
-	float envMask = (EnvmapData.y * (envMaskColor - glossiness) + glossiness) * (EnvmapData.x * MaterialData.x);
-	float viewNormalAngle = dot(worldSpaceNormal.xyz, viewDirection);
-	float3 envSamplingPoint = (viewNormalAngle * 2) * modelNormal.xyz - viewDirection;
-	float4 envColorBase = TexEnvSampler.Sample(SampEnvSampler, envSamplingPoint);
-	envColorBase.rgb = Color::Tint(envColorBase.rgb);
-	float3 envColor = envColorBase.xyz * envMask;
-#		if defined(DYNAMIC_CUBEMAPS)
-	float3 F0 = 0.0;
-	float envRoughness = 1.0;
+	float envMask = EnvmapData.x * MaterialData.x;
 
-	uint2 envSize;
-	TexEnvSampler.GetDimensions(envSize.x, envSize.y);
-
-	bool dynamicCubemap = false;
-	if (envMask > 0.0 && envSize.x == 1 && envSize.y == 1) {
-		dynamicCubemap = true;
-
-		// Dynamic Cubemap Creator sets this value to black, if it is anything but black it is wrong
-		float3 envColorTest = TexEnvSampler.SampleLevel(SampEnvSampler, float3(0.0, 1.0, 0.0), 15);
-		dynamicCubemap = all(envColorTest == 0.0);
-
-		if (dynamicCubemap) {
-			envColorBase = TexEnvSampler.SampleLevel(SampEnvSampler, float3(1.0, 0.0, 0.0), 15);
-
-			if (envColorBase.a < 1.0) {
-#			if defined(LINEAR_LIGHTING)
-				F0 = (envColorBase.rgb + baseColor.rgb);
-#			else
-				F0 = (Color::GammaToLinear(envColorBase.rgb) + Color::GammaToLinear(baseColor.rgb));
-#			endif
-				envRoughness = envColorBase.a;
-			} else {
-				F0 = 1.0;
-				envRoughness = 1.0 / 7.0;
-			}
+	if (envMask > 0.0) {
+		if (EnvmapData.y) {
+			envMask *= TexEnvMaskSampler.Sample(SampEnvMaskSampler, uv).x;
+		} else {
+			envMask *= glossiness;
 		}
 	}
 
-#			if defined(CREATOR)
-	if (SharedData::cubemapCreatorSettings.Enabled) {
-		dynamicCubemap = true;
-#				if defined(LINEAR_LIGHTING)
-		F0 = (Color::Tint(SharedData::cubemapCreatorSettings.CubemapColor.rgb) + baseColor.xyz);
-#				else
-		F0 = (Color::GammaToLinear(SharedData::cubemapCreatorSettings.CubemapColor.rgb) + Color::GammaToLinear(baseColor.xyz));
-#				endif
-		envRoughness = SharedData::cubemapCreatorSettings.CubemapColor.a;
-	}
-#			endif
+	float3 envColor = 0.0;
+	bool dynamicCubemap = false;
 
-	if (dynamicCubemap) {
-#			if defined(EMAT)
-		float complexMaterialRoughness = 1.0 - complexMaterialColor.y;
-		envRoughness = lerp(envRoughness, complexMaterialRoughness * complexMaterialRoughness, complexMaterial);
-#				if defined(LINEAR_LIGHTING)
-		F0 = lerp(F0, complexSpecular, complexMaterial);
-#				else
-		F0 = lerp(F0, Color::GammaToLinear(complexSpecular), complexMaterial);
-#				endif
-#			endif
-
-		if (any(F0 > 0.0))
-			envColor = DynamicCubemaps::GetDynamicCubemap(screenUV, worldSpaceNormal, worldSpaceVertexNormal, worldSpaceViewDirection, envRoughness, F0, diffuseColor, viewPosition.z) * envMask;
-		else
-			envColor = 0.0;
-	}
+#		if defined(DYNAMIC_CUBEMAPS)
+	float3 F0 = 0.0;
+	float envRoughness = 1.0;
 #		endif
+
+	if (envMask > 0.0) {
+#		if defined(DYNAMIC_CUBEMAPS)
+		uint2 envSize;
+		TexEnvSampler.GetDimensions(envSize.x, envSize.y);
+
+		if (envSize.x == 1 && envSize.y == 1) {
+			dynamicCubemap = true;
+
+			// Dynamic Cubemap Creator sets this value to black, if it is anything but black it is wrong
+			float3 envColorTest = TexEnvSampler.SampleLevel(SampEnvSampler, float3(0.0, 1.0, 0.0), 15);
+			dynamicCubemap = all(envColorTest == 0.0);
+
+#			if defined(CREATOR)
+			if (SharedData::cubemapCreatorSettings.Enabled) {
+				dynamicCubemap = true;
+			}
+#			endif
+
+			if (dynamicCubemap) {
+				float4 envColorBase = TexEnvSampler.SampleLevel(SampEnvSampler, float3(1.0, 0.0, 0.0), 15);
+
+				if (envColorBase.a < 1.0) {
+					F0 = (Color::GammaToLinear(envColorBase.rgb) + Color::GammaToLinear(baseColor.rgb));
+					envRoughness = envColorBase.a;
+				} else {
+					F0 = 1.0;
+					envRoughness = 1.0 / 7.0;
+				}
+
+#			if defined(CREATOR)
+				if (SharedData::cubemapCreatorSettings.Enabled) {
+					F0 = (Color::GammaToLinear(SharedData::cubemapCreatorSettings.CubemapColor.rgb) + Color::GammaToLinear(baseColor.xyz));
+					envRoughness = SharedData::cubemapCreatorSettings.CubemapColor.a;
+				}
+#			endif
+
+#			if defined(EMAT)
+				float complexMaterialRoughness = 1.0 - complexMaterialColor.y;
+				envRoughness = lerp(envRoughness, complexMaterialRoughness * complexMaterialRoughness, complexMaterial);
+				F0 = lerp(F0, Color::GammaToLinear(complexSpecular), complexMaterial);
+#			endif
+
+				if (any(F0 > 0.0))
+					envColor = DynamicCubemaps::GetDynamicCubemap(screenUV, worldSpaceNormal, worldSpaceVertexNormal, worldSpaceViewDirection, envRoughness, F0, diffuseColor, viewPosition.z) * envMask;
+				else
+					envColor = 0.0;
+			}
+		}
+#		endif
+
+		if (!dynamicCubemap) {
+			float3 envColorBase = TexEnvSampler.Sample(SampEnvSampler, reflect(-viewDirection.xyz, modelNormal.xyz));
+			envColor = envColorBase.xyz * envMask;
+		}
+	}
+
 #	endif  // defined (ENVMAP) || defined (MULTI_LAYER_PARALLAX) || defined(EYE)
 
 	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
@@ -2509,7 +2546,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // MULTI_LAYER_PARALLAX
 
 #	if defined(SPECULAR)
-#		if defined(EMAT) && defined(ENVMAP)
+#		if defined(EMAT_ENVMAP)
 	specularColor = (specularColor * glossiness * MaterialData.yyy) * lerp(SpecularColor.xyz, complexSpecular, complexMaterial);
 #		else
 	specularColor = (specularColor * glossiness * MaterialData.yyy) * SpecularColor.xyz;
@@ -2539,7 +2576,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #		endif
 
-#		if defined(EMAT) && defined(ENVMAP)
+#		if defined(EMAT_ENVMAP)
 #			if defined(DYNAMIC_CUBEMAPS)
 	envColor *= lerp(complexSpecular, 1.0, dynamicCubemap);
 	specularColor += envColor * diffuseColor;
@@ -2558,7 +2595,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 #	endif
 
-#	if defined(EMAT) && defined(ENVMAP)
+#	if defined(EMAT_ENVMAP)
 	specularColor *= complexSpecular;
 #	endif  // defined (EMAT) && defined(ENVMAP)
 
@@ -2608,9 +2645,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		color.xyz = lerp(color.xyz, Color::Tint(input.FogParam.xyz), input.FogParam.w);
 #	endif
 
-#	if defined(TESTCUBEMAP)
-#		if (defined(ENVMAP) || defined(MULTI_LAYER_PARALLAX) || defined(EYE))
-#			if defined(DYNAMIC_CUBEMAPS)
+#	if defined(TESTCUBEMAP) && defined(ENVMAP) && defined(DYNAMIC_CUBEMAPS)
 	baseColor.xyz = 0.0;
 	specularColor = 0.0;
 	diffuseColor = 0.0;
@@ -2618,8 +2653,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	envColor = 1.0;
 	envRoughness = 0.0;
 	color.xyz = 0;
-#			endif
-#		endif
 #	endif
 
 #	if defined(LANDSCAPE) && !defined(LOD_LAND_BLEND)
@@ -2742,7 +2775,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(TERRAIN_BLENDING)
 	psout.Diffuse.w = blendFactorTerrain;
-	psout.Depth = lerp(max(depthSampled, input.Position.z), input.Position.z, blendFactorTerrain > screenNoise);
 #		endif
 
 	psout.MotionVectors.zw = float2(0.0, psout.Diffuse.w);
