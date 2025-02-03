@@ -42,7 +42,7 @@ namespace Color
 	}
 
 	const static float AlbedoMult = 1.7;
-	const static float AlbedoPreMult = 1 / AlbedoMult;                        // greater value -> brighter pbr
+	const static float AlbedoPreMult = 1 / AlbedoMult;                 // greater value -> brighter pbr
 	const static float LightPreMult = 1 / (Math::PI * AlbedoPreMult);  // ensure 1/PI as product
 
 	float3 GammaToLinear(float3 color)
@@ -131,7 +131,8 @@ namespace Color
 	{
 		return color;
 	}
-	float3 VanillaToPBR(float3 color){
+	float3 VanillaToPBR(float3 color)
+	{
 		return color;
 	}
 #endif
