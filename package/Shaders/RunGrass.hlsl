@@ -677,10 +677,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	diffuseColor.xyz += transmissionColor;
 	specularColor.xyz += specularColorPBR;
-#				if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear){
 	specularColor.xyz = Color::LinearToGamma(specularColor.xyz);
 	diffuseColor.xyz = Color::LinearToGamma(diffuseColor.xyz);
-#				endif
+		}
 #			else
 
 #				if !defined(SSGI)
@@ -698,13 +698,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
-#						if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
-#						endif
 	directionalAmbientColor *= skylighting;
-#						if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
-#						endif
 #					endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;
@@ -870,13 +868,11 @@ PS_OUTPUT main(PS_INPUT input)
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
-#					if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
-#					endif
 	directionalAmbientColor *= skylighting;
-#					if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
-#					endif
 #				endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;

@@ -89,20 +89,18 @@ float3 GetSamplingVector(uint3 ThreadID, in RWTexture2DArray<float4> OutputTextu
 	}
 
 #if defined(REFLECTIONS)
-#	if defined(LINEAR_LIGHTING)
 	//idk why this LinearToGamma, something prolly borked elsewhere, but works
+		if(SharedData::linearSettings.Linear)
 	color.rgb = lerp(Color::LinearToGamma(color.rgb), ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb, saturate(mipLevel / 7.0));
-#	else
+else
 	color.rgb = lerp(color.rgb, Color::GammaToLinear(ReflectionsTexture.SampleLevel(LinearSampler, uv, 0).rgb), saturate(mipLevel / 7.0));
-#	endif
 #else
 	color.rgb = lerp(color.rgb, color.rgb * Color::Tint(DefaultCubemap.SampleLevel(LinearSampler, uv, 0)), saturate(mipLevel / 7.0));
 #endif
 
-#if defined(LINEAR_LIGHTING)
+	if(SharedData::linearSettings.Linear)
 	color.rgb = color.rgb;
-#else
+else
 	color.rgb = Color::LinearToGamma(color.rgb);
-#endif
 	EnvInferredTexture[ThreadID] = max(0, color);
 }

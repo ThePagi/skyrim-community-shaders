@@ -91,11 +91,10 @@ float smoothbumpstep(float edge0, float edge1, float x)
 
 			position += positionCS.xyz;
 
-#if defined(LINEAR_LIGHTING)
+		if(SharedData::linearSettings.Linear)
 			color += (ColorTexture.SampleLevel(LinearSampler, uv, 0).rgb);
-#else
+else
 			color += Color::GammaToLinear(ColorTexture.SampleLevel(LinearSampler, uv, 0).rgb);
-#endif
 			weight++;
 		}
 

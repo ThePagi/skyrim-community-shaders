@@ -44,10 +44,8 @@ namespace SharedData
 		bool EnableShadows;
 		bool ExtendShadows;
 		bool EnableParallaxWarpingFix;
-		float ColorMatchingPow;
 
-		float ColorMatchingMult;
-		float3 pad0;
+		float pad0;
 	};
 
 	struct CubemapCreatorSettings
@@ -133,6 +131,14 @@ namespace SharedData
 		uint2 pad0;
 	};
 
+	struct LinearSettings{
+		bool Linear;
+		float ColorMatchingPow;
+		float ColorMatchingMult;
+		uint pad0;
+	};
+
+	
 	cbuffer FeatureData : register(b6)
 	{
 		GrassLightingSettings grassLightingSettings;
@@ -142,6 +148,7 @@ namespace SharedData
 		LightLimitFixSettings lightLimitFixSettings;
 		WetnessEffectsSettings wetnessEffectsSettings;
 		SkylightingSettings skylightingSettings;
+		LinearSettings linearSettings;
 	};
 
 	Texture2D<float4> DepthTexture : register(t17);

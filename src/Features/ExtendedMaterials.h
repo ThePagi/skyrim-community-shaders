@@ -26,11 +26,8 @@ struct ExtendedMaterials : Feature
 		uint EnableShadows = 1;
 		uint ExtendShadows = 0;
 		uint EnableParallaxWarpingFix = 1;
-		float ColorMatchingPow = 2.0;
 
-		float ColorMatchingMult = 1.25;
-
-		float pad[3];
+		float pad[1];
 	};
 
 	Settings settings;

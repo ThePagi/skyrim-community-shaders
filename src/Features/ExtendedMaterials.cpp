@@ -10,9 +10,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	EnableHeightBlending,
 	EnableShadows,
 	ExtendShadows,
-	EnableParallaxWarpingFix,
-	ColorMatchingPow,
-	ColorMatchingMult)
+	EnableParallaxWarpingFix)
 
 void ExtendedMaterials::DataLoaded()
 {
@@ -28,17 +26,6 @@ void ExtendedMaterials::DataLoaded()
 
 void ExtendedMaterials::DrawSettings()
 {
-	if (ImGui::TreeNodeEx("sRGB vs Linear", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Color Matching Power", &settings.ColorMatchingPow, 1.0, 2.2, "%.1f");
-		if (auto _tt = Util::HoverTooltipWrapper()) {
-			ImGui::Text("Power applied when converting vanilla to linear or pbr to vanilla. Standard between sRGB and linear is 2.2");
-		}
-		ImGui::SliderFloat("Color Matching Multiplier", &settings.ColorMatchingMult, 1.0, 2.0, "%.1f");
-		if (auto _tt = Util::HoverTooltipWrapper()) {
-			ImGui::Text("Multiplier applied after conversion");
-		}
-	}
-
 	if (ImGui::TreeNodeEx("Complex Material", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::Checkbox("Enable Complex Material", (bool*)&settings.EnableComplexMaterial);
 		if (auto _tt = Util::HoverTooltipWrapper()) {

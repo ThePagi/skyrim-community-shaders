@@ -2077,11 +2077,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(WETNESS_EFFECTS)
 	if (waterRoughnessSpecular < 1.0)
-#			if defined(LINEAR_LIGHTING)
+		if(SharedData::linearSettings.Linear)
 		wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, worldSpaceViewDirection, dirLightColor * dirDetailShadow, waterRoughnessSpecular);
-#			else
+else
 		wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, worldSpaceViewDirection, Color::GammaToLinear(dirLightColor * dirDetailShadow) / Color::LightPreMult, waterRoughnessSpecular);
-#			endif
 #		endif
 #	endif
 
@@ -2296,11 +2295,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #			if defined(WETNESS_EFFECTS)
 		if (waterRoughnessSpecular < 1.0)
-#				if defined(LINEAR_LIGHTING)
+		if(SharedData::linearSettings.Linear)
 			wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedLightDirection, worldSpaceViewDirection, lightColor, waterRoughnessSpecular);
-#				else
+else
 			wetnessSpecular += WetnessEffects::GetWetnessSpecular(wetnessNormal, normalizedLightDirection, worldSpaceViewDirection, Color::GammaToLinear(lightColor) / Color::LightPreMult, waterRoughnessSpecular);
-#				endif
 #			endif
 	}
 #		endif
@@ -2347,13 +2345,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float skylightingDiffuse = SphericalHarmonics::FuncProductIntegral(skylightingSH, SphericalHarmonics::EvaluateCosineLobe(float3(worldSpaceNormal.xy, worldSpaceNormal.z * 0.5 + 0.5))) / Math::PI;
 	skylightingDiffuse = lerp(1.0, skylightingDiffuse, Skylighting::getFadeOutFactor(input.WorldPosition.xyz));
 	skylightingDiffuse = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylightingDiffuse);
-#		if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
-#		endif
 	directionalAmbientColor *= skylightingDiffuse;
-#		if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor);
-#		endif
 #	endif
 
 #	if defined(TRUE_PBR) && defined(LOD_LAND_BLEND) && !defined(DEFERRED)
@@ -2570,9 +2566,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			else
 		diffuseColor = 1.0;
 #			endif
-#			if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		specularColor = Color::GammaToLinear(specularColor);
-#			endif
 	}
 #		endif
 
@@ -2587,11 +2582,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		else
 	specularColor += envColor * diffuseColor;
 #		endif
-#		if defined(DYNAMIC_CUBEMAPS) && !defined(LINEAR_LIGHTING)
+#		if defined(DYNAMIC_CUBEMAPS)
 	if (dynamicCubemap)
-#			if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		specularColor = Color::LinearToGamma(specularColor);
-#			endif
 #		endif
 #	endif
 
@@ -2604,9 +2598,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz += specularColor;
 #		endif
 #	endif
-#	if !defined(LINEAR_LIGHTING)
+	if(!SharedData::linearSettings.Linear)
 	color.xyz = Color::GammaToLinear(color.xyz);
-#	endif
 
 #	if defined(WETNESS_EFFECTS) && !defined(TRUE_PBR)
 	color.xyz += wetnessSpecular * wetnessGlossinessSpecular;
@@ -2616,9 +2609,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz += specularColorPBR;
 #	endif
 
-#	if !defined(LINEAR_LIGHTING)
+	if(!SharedData::linearSettings.Linear)
 	color.xyz = Color::LinearToGamma(color.xyz);
-#	endif
 
 #	if defined(LOD_LAND_BLEND) && defined(TRUE_PBR)
 	{
@@ -2629,11 +2621,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(DEFERRED)
 		specularColorPBR = lerp(specularColorPBR, 0, lodLandBlendFactor);
-#			if defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		indirectDiffuseLobeWeight = lerp(indirectDiffuseLobeWeight, input.Color.xyz * lodLandColor * lodLandFadeFactor, lodLandBlendFactor);
-#			else
+		else
 		indirectDiffuseLobeWeight = lerp(indirectDiffuseLobeWeight, input.Color.xyz * lodLandColor * lodLandFadeFactor, lodLandBlendFactor);
-#			endif
 		indirectSpecularLobeWeight = lerp(indirectSpecularLobeWeight, 0, lodLandBlendFactor);
 		pbrGlossiness = lerp(pbrGlossiness, 0, lodLandBlendFactor);
 #		endif

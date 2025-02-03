@@ -101,7 +101,8 @@ float4 SSSSBlurCS(
 	// Fetch color of current pixel:
 	float4 colorM = ColorTexture[DTid.xy];
 
-#if defined(HORIZONTAL) && !defined(LINEAR_LIGHTING)
+#if defined(HORIZONTAL)
+	if(!SharedData::linearSettings.Linear)
 	colorM.rgb = Color::GammaToLinear(colorM.rgb);
 #endif
 
@@ -158,7 +159,8 @@ float4 SSSSBlurCS(
 
 		float3 color = ColorTexture[coords].rgb;
 
-#if defined(HORIZONTAL) && !defined(LINEAR_LIGHTING)
+#if defined(HORIZONTAL)
+		if(!SharedData::linearSettings.Linear)
 		color.rgb = Color::GammaToLinear(color.rgb);
 #endif
 

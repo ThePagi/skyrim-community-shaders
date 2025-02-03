@@ -63,21 +63,24 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 	//MainRW[dispatchID.xy] =  Color::LinearToGamma(diffuseColor );
 	//return;
+	half3 linAlbedo;
+	half3 linDirectionalAmbientColor;
+	half3 linDiffuseColor;
+	half3 linAmbient;
+	if(SharedData::linearSettings.Linear){
+	linAlbedo = albedo;
+	linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);  //no TRUE_PBR define in here
+	linDiffuseColor = diffuseColor;
 
-#if defined(LINEAR_LIGHTING)
-	half3 linAlbedo = albedo;
-	half3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);  //no TRUE_PBR define in here
-	half3 linDiffuseColor = diffuseColor;
+	linAmbient = linAlbedo * linDirectionalAmbientColor;
+	}
+	else{
+	linAlbedo = Color::GammaToLinear(albedo) * Color::AlbedoMult;
+	linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
+	linDiffuseColor = Color::GammaToLinear(diffuseColor);
 
-	half3 linAmbient = linAlbedo * linDirectionalAmbientColor;
-#else
-	half3 linAlbedo = Color::GammaToLinear(albedo) * Color::AlbedoMult;
-	half3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
-	half3 linDiffuseColor = Color::GammaToLinear(diffuseColor);
-
-	half3 linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
-#endif
-
+	linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
+	}
 	half visibility = 1.0;
 #if defined(SKYLIGHTING)
 	float rawDepth = DepthTexture[dispatchID.xy];
@@ -131,13 +134,12 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 	linAmbient *= visibility;
 
-#if defined(LINEAR_LIGHTING)
+	if(SharedData::linearSettings.Linear)
 	diffuseColor = linDiffuseColor + linAmbient;
-#else
+else{
 	diffuseColor = Color::LinearToGamma(linDiffuseColor);
 	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::AlbedoMult);
 	diffuseColor = diffuseColor + directionalAmbientColor * albedo;
-#endif
-
+}
 	MainRW[dispatchID.xy] = diffuseColor;
 };

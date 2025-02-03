@@ -544,13 +544,11 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 		sh2 skylightingSH = Skylighting::sampleNoBias(SharedData::skylightingSettings, Skylighting::SkylightingProbeArray, positionMSSkylight);
 		float skylighting = SphericalHarmonics::Unproject(skylightingSH, float3(0, 0, 1));
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(worldPosition));
-#			if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		color = Color::GammaToLinear(color);
-#			endif
 		color *= Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
-#			if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		color = Color::LinearToGamma(color);
-#			endif
 #		endif
 
 		color += dirLightColor * ShadowSampling::GetEffectShadow(worldPosition, normalize(worldPosition), screenPosition, eyeIndex);
@@ -565,13 +563,11 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 		sh2 skylightingSH = Skylighting::sampleNoBias(SharedData::skylightingSettings, Skylighting::SkylightingProbeArray, positionMSSkylight);
 		float skylighting = SphericalHarmonics::Unproject(skylightingSH, float3(0, 0, 1));
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(worldPosition));
-#			if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		color = Color::GammaToLinear(color);
-#			endif
 		color *= Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
-#			if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		color = Color::LinearToGamma(color);
-#			endif
 #		endif
 	}
 
@@ -579,15 +575,16 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 	if (!(Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::InWorld))
 #		endif
 	{
-#		if defined(LINEAR_LIGHTING)
+		if(SharedData::linearSettings.Linear){
 		color.x += dot(pow(abs(PLightColorR), 2.2) * lightFadeMul, 1.0.xxxx);
 		color.y += dot(pow(abs(PLightColorG), 2.2) * lightFadeMul, 1.0.xxxx);
 		color.z += dot(pow(abs(PLightColorB), 2.2) * lightFadeMul, 1.0.xxxx);
-#		else
+}
+else{
 		color.x += dot(PLightColorR * lightFadeMul, 1.0.xxxx);
 		color.y += dot(PLightColorG * lightFadeMul, 1.0.xxxx);
 		color.z += dot(PLightColorB * lightFadeMul, 1.0.xxxx);
-#		endif
+}
 	}
 
 	return color;
@@ -694,11 +691,7 @@ PS_OUTPUT main(PS_INPUT input)
 	{
 		baseTexColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
 #	if defined(TEXTURE)
-#		if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
-		[branch] if (!(Permutation::PixelShaderDescriptor & Permutation::EffectFlags::GrayscaleToColor))
-			baseTexColor.rgb = Color::Tint(baseTexColor.rgb);
-		else
-#		endif
+
 			baseTexColor.rgb = Color::Diffuse(baseTexColor.rgb);
 #	endif
 		baseColor *= baseTexColor;
@@ -750,9 +743,6 @@ PS_OUTPUT main(PS_INPUT input)
 	alpha *= PropertyColor.w;
 
 	float baseColorScale = BaseColorScale.x;
-	//#if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
-	//baseColorScale = baseColorScale * Color::AlbedoPreMult;
-	//#endif
 
 #	if defined(MEMBRANE)
 	baseColor.xyz = (Color::Tint(PropertyColor.xyz) + baseColor.xyz) * alpha + membraneColor.xyz * membraneColor.w;

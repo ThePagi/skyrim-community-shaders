@@ -95,11 +95,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 	half glossiness = normalGlossiness.z;
 
-#if defined(LINEAR_LIGHTING)
 	half3 color = diffuseColor + specularColor;
-#else
-	half3 color = diffuseColor + specularColor;
-#endif
 
 #if defined(DYNAMIC_CUBEMAPS)
 
@@ -112,9 +108,9 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 		normalWS = lerp(normalWS, float3(0, 0, 1), wetnessMask);
 
-#	if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		color = Color::GammaToLinear(color);
-#	endif
+
 		half3 V = normalize(positionWS.xyz);
 		half3 R = reflect(V, normalWS);
 
@@ -127,9 +123,8 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 #	if defined(INTERIOR)
 		half3 specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
-#		if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		specularIrradiance = Color::GammaToLinear(specularIrradiance);
-#		endif
 
 		finalIrradiance += specularIrradiance;
 #	elif defined(SKYLIGHTING)
@@ -148,25 +143,22 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 		if (skylightingSpecular < 1.0) {
 			specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
-#		if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 			specularIrradiance = Color::GammaToLinear(specularIrradiance);
-#		endif
 		}
 
 		half3 specularIrradianceReflections = 1.0;
 
 		if (skylightingSpecular > 0.0) {
 			specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
-#		if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 			specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
-#		endif
 		}
 		finalIrradiance = finalIrradiance * skylightingSpecular + lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
 #	else
 		half3 specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
-#		if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
-#		endif
 
 		finalIrradiance += specularIrradianceReflections;
 #	endif
@@ -198,9 +190,8 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 
 		color += reflectance * finalIrradiance;
 
-#	if !defined(LINEAR_LIGHTING)
+		if(!SharedData::linearSettings.Linear)
 		color = Color::LinearToGamma(color);
-#	endif
 	}
 
 #endif
@@ -222,9 +213,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 	}
 
 #endif
-#if defined(LINEAR_LIGHTING)
-	//color = Color::LinearToGamma(color);
-#endif
+
 	MainRW[dispatchID.xy] = color;
 	NormalTAAMaskSpecularMaskRW[dispatchID.xy] = half4(GBuffer::EncodeNormalVanilla(normalVS), 0.0, 0.0);
 }
