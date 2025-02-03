@@ -2339,7 +2339,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	diffuseColor += emitColor.xyz;
 #	endif
 
-	float3 directionalAmbientColor = Color::Light(mul(DirectionalAmbient, modelNormal));
+	float3 directionalAmbientColor = Color::Ambient(mul(DirectionalAmbient, modelNormal));
 
 	float3 reflectionDiffuseColor = diffuseColor + directionalAmbientColor;
 

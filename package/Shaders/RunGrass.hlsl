@@ -684,7 +684,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			else
 
 #				if !defined(SSGI)
-	float3 directionalAmbientColor = Color::Light(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
+	float3 directionalAmbientColor = Color::Ambient(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 
 #					if defined(SKYLIGHTING)
 #						if defined(VR)

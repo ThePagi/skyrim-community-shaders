@@ -530,7 +530,7 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 
 	if ((Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::EffectShadows) && !SharedData::InMapMenu && !SharedData::InInterior) {
 		float3 dirLightColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * 0.5;
-		float3 ambientColor = Color::Light(mul(SharedData::DirectionalAmbient, float4(0, 0, 1, 1)));
+		float3 ambientColor = Color::Ambient(mul(SharedData::DirectionalAmbient, float4(0, 0, 1, 1)));
 
 		color = ambientColor;
 
