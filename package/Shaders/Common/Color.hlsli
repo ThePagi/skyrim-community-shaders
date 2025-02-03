@@ -56,22 +56,22 @@ namespace Color
 	}
 
 #if defined(PSHADER) || defined(CSHADER) || defined(COMPUTESHADER)
-#if defined(LINEAR_LIGHTING)
+#	if defined(LINEAR_LIGHTING)
 	float3 Light(float3 color)
 	{
-#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+#		if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
 		return GammaToLinear(color) * Math::PI;
-#	else
+#		else
 		return GammaToLinear(color);
-#	endif
+#		endif
 	}
 	float3 Diffuse(float3 color)
 	{
-#	if defined(TRUE_PBR)
+#		if defined(TRUE_PBR)
 		return color;
-#	else
+#		else
 		return pow(color, SharedData::extendedMaterialSettings.ColorMatchingPow) * SharedData::extendedMaterialSettings.ColorMatchingMult;
-#	endif
+#		endif
 	}
 	float3 Tint(float3 color)
 	{
@@ -83,29 +83,30 @@ namespace Color
 	}
 	float3 Output(float3 color)
 	{
-#	if defined(DEFERRED)
+#		if defined(DEFERRED)
 		return color;
-#	else
+#		else
 		return color;
-#	endif
+#		endif
 	}
 	float3 LLToGamma(float3 color)
 	{
 		return LinearToGamma(color);
 	}
-	float3 VanillaToPBR(float3 color){
+	float3 VanillaToPBR(float3 color)
+	{
 		return pow(color, SharedData::extendedMaterialSettings.ColorMatchingPow) * SharedData::extendedMaterialSettings.ColorMatchingMult;
 	}
 
-#else
+#	else
 
 	float3 Diffuse(float3 color)
 	{
-#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
-		return pow(color / SharedData::extendedMaterialSettings.ColorMatchingMult, 1./SharedData::extendedMaterialSettings.ColorMatchingPow);
-#	else
+#		if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+		return pow(color / SharedData::extendedMaterialSettings.ColorMatchingMult, 1. / SharedData::extendedMaterialSettings.ColorMatchingPow);
+#		else
 		return color;
-#	endif
+#		endif
 	}
 	float3 Tint(float3 color)
 	{
@@ -113,11 +114,11 @@ namespace Color
 	}
 	float3 Light(float3 color)
 	{
-#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+#		if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
 		return color * Math::PI;
-#	else
+#		else
 		return color;
-#	endif
+#		endif
 	}
 	float3 Ambient(float3 color)
 	{
@@ -134,7 +135,7 @@ namespace Color
 	float3 VanillaToPBR(float3 color){
 		return color;
 	}
-#endif
+#	endif
 #endif
 }
 
