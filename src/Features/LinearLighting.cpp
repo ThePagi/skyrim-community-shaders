@@ -23,7 +23,6 @@ void LinearLighting::DrawSettings()
 	if (auto _tt = Util::HoverTooltipWrapper()) {
 		ImGui::Text("Multiplier applied after conversion");
 	}
-	
 }
 
 void LinearLighting::SaveSettings(json& o_json)
@@ -40,4 +39,3 @@ void LinearLighting::RestoreDefaultSettings()
 {
 	settings = {};
 }
-

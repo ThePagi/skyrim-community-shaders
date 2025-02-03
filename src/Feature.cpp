@@ -7,6 +7,7 @@
 #include "Features/GrassCollision.h"
 #include "Features/GrassLighting.h"
 #include "Features/LightLimitFix.h"
+#include "Features/LinearLighting.h"
 #include "Features/ScreenSpaceGI.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/Skylighting.h"
@@ -16,7 +17,6 @@
 #include "Features/VolumetricLighting.h"
 #include "Features/WaterEffects.h"
 #include "Features/WetnessEffects.h"
-#include "Features/LinearLighting.h"
 
 #include "State.h"
 

@@ -677,10 +677,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	diffuseColor.xyz += transmissionColor;
 	specularColor.xyz += specularColorPBR;
-		if(!SharedData::linearSettings.Linear){
-	specularColor.xyz = Color::LinearToGamma(specularColor.xyz);
-	diffuseColor.xyz = Color::LinearToGamma(diffuseColor.xyz);
-		}
+	if (!SharedData::linearSettings.Linear) {
+		specularColor.xyz = Color::LinearToGamma(specularColor.xyz);
+		diffuseColor.xyz = Color::LinearToGamma(diffuseColor.xyz);
+	}
 #			else
 
 #				if !defined(SSGI)
@@ -698,11 +698,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
-		if(!SharedData::linearSettings.Linear)
-	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
+	if (!SharedData::linearSettings.Linear)
+		directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
 	directionalAmbientColor *= skylighting;
-		if(!SharedData::linearSettings.Linear)
-	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
+	if (!SharedData::linearSettings.Linear)
+		directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
 #					endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;
@@ -868,11 +868,11 @@ PS_OUTPUT main(PS_INPUT input)
 	skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WorldPosition));
 	skylighting = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
 
-		if(!SharedData::linearSettings.Linear)
-	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
+	if (!SharedData::linearSettings.Linear)
+		directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
 	directionalAmbientColor *= skylighting;
-		if(!SharedData::linearSettings.Linear)
-	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
+	if (!SharedData::linearSettings.Linear)
+		directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
 #				endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;

@@ -2,11 +2,9 @@
 
 #include "Feature.h"
 
-
 class LinearLighting : public Feature
 {
 public:
-
 	static LinearLighting* GetSingleton()
 	{
 		static LinearLighting singleton;
@@ -17,7 +15,6 @@ public:
 	virtual inline std::string GetShortName() override { return "LinearLighting"; }
 	virtual inline std::string_view GetShaderDefineName() override { return "LINEAR_LIGHTING"; }
 	virtual bool HasShaderDefine(RE::BSShader::Type) override { return true; }
-
 
 	struct alignas(16) Settings
 	{
@@ -37,5 +34,4 @@ public:
 	virtual void RestoreDefaultSettings() override;
 
 	virtual bool SupportsVR() override { return true; };
-
 };

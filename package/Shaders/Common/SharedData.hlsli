@@ -131,14 +131,14 @@ namespace SharedData
 		uint2 pad0;
 	};
 
-	struct LinearSettings{
+	struct LinearSettings
+	{
 		bool Linear;
 		float ColorMatchingPow;
 		float ColorMatchingMult;
 		uint pad0;
 	};
 
-	
 	cbuffer FeatureData : register(b6)
 	{
 		GrassLightingSettings grassLightingSettings;

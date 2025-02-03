@@ -67,19 +67,18 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 	half3 linDirectionalAmbientColor;
 	half3 linDiffuseColor;
 	half3 linAmbient;
-	if(SharedData::linearSettings.Linear){
-	linAlbedo = albedo;
-	linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);  //no TRUE_PBR define in here
-	linDiffuseColor = diffuseColor;
+	if (SharedData::linearSettings.Linear) {
+		linAlbedo = albedo;
+		linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);  //no TRUE_PBR define in here
+		linDiffuseColor = diffuseColor;
 
-	linAmbient = linAlbedo * linDirectionalAmbientColor;
-	}
-	else{
-	linAlbedo = Color::GammaToLinear(albedo) * Color::AlbedoMult;
-	linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
-	linDiffuseColor = Color::GammaToLinear(diffuseColor);
+		linAmbient = linAlbedo * linDirectionalAmbientColor;
+	} else {
+		linAlbedo = Color::GammaToLinear(albedo) * Color::AlbedoMult;
+		linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
+		linDiffuseColor = Color::GammaToLinear(diffuseColor);
 
-	linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
+		linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
 	}
 	half visibility = 1.0;
 #if defined(SKYLIGHTING)
@@ -134,12 +133,12 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 	linAmbient *= visibility;
 
-	if(SharedData::linearSettings.Linear)
-	diffuseColor = linDiffuseColor + linAmbient;
-else{
-	diffuseColor = Color::LinearToGamma(linDiffuseColor);
-	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::AlbedoMult);
-	diffuseColor = diffuseColor + directionalAmbientColor * albedo;
-}
+	if (SharedData::linearSettings.Linear)
+		diffuseColor = linDiffuseColor + linAmbient;
+	else {
+		diffuseColor = Color::LinearToGamma(linDiffuseColor);
+		directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::AlbedoMult);
+		diffuseColor = diffuseColor + directionalAmbientColor * albedo;
+	}
 	MainRW[dispatchID.xy] = diffuseColor;
 };

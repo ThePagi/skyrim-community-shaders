@@ -102,8 +102,8 @@ float4 SSSSBlurCS(
 	float4 colorM = ColorTexture[DTid.xy];
 
 #if defined(HORIZONTAL)
-	if(!SharedData::linearSettings.Linear)
-	colorM.rgb = Color::GammaToLinear(colorM.rgb);
+	if (!SharedData::linearSettings.Linear)
+		colorM.rgb = Color::GammaToLinear(colorM.rgb);
 #endif
 
 	if (sssAmount == 0)
@@ -160,8 +160,8 @@ float4 SSSSBlurCS(
 		float3 color = ColorTexture[coords].rgb;
 
 #if defined(HORIZONTAL)
-		if(!SharedData::linearSettings.Linear)
-		color.rgb = Color::GammaToLinear(color.rgb);
+		if (!SharedData::linearSettings.Linear)
+			color.rgb = Color::GammaToLinear(color.rgb);
 #endif
 
 		float depth = DepthTexture[coords].r;

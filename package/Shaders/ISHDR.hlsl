@@ -118,8 +118,8 @@ PS_OUTPUT main(PS_INPUT input)
 			float3 compressedHuePreserving = inputColor * mappedMax / maxCol;
 			blendedColor = compressedHuePreserving;
 		}
-		if(SharedData::linearSettings.Linear)
-		bloomColor *= 0.01;  // workaround to reduce extreme bloom until bloom shader can be fixed for linear
+		if (SharedData::linearSettings.Linear)
+			bloomColor *= 0.01;  // workaround to reduce extreme bloom until bloom shader can be fixed for linear
 
 		blendedColor += saturate(Param.x - blendedColor) * bloomColor;
 		//blendedColor = Param.x;

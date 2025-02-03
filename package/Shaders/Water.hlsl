@@ -557,22 +557,22 @@ float3 GetWaterSpecularColor(PS_INPUT input, float3 normal, float3 viewDirection
 
 			if (skylightingSpecular < 1.0) {
 				specularIrradiance = DynamicCubemaps::EnvTexture.SampleLevel(CubeMapSampler, R, 0).xyz;
-		if(!SharedData::linearSettings.Linear)
-				specularIrradiance = Color::GammaToLinear(specularIrradiance);
+				if (!SharedData::linearSettings.Linear)
+					specularIrradiance = Color::GammaToLinear(specularIrradiance);
 			}
 
 			float3 specularIrradianceReflections = 1.0;
 
 			if (skylightingSpecular > 0.0) {
 				specularIrradianceReflections = DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, R, 0).xyz;
-		if(!SharedData::linearSettings.Linear)
-				specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
+				if (!SharedData::linearSettings.Linear)
+					specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
 			}
-		float3 dynamicCubemap;
-		if(SharedData::linearSettings.Linear)
-			dynamicCubemap = lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
-		else
-			dynamicCubemap = Color::LinearToGamma(lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular));
+			float3 dynamicCubemap;
+			if (SharedData::linearSettings.Linear)
+				dynamicCubemap = lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
+			else
+				dynamicCubemap = Color::LinearToGamma(lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular));
 #				else
 			float3 dynamicCubemap = DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, R, 0);
 #				endif
@@ -618,10 +618,10 @@ float3 GetWaterSpecularColor(PS_INPUT input, float3 normal, float3 viewDirection
 		}
 #			endif
 		float3 finalReflectionColor;
-		if(SharedData::linearSettings.Linear)
-		finalReflectionColor = lerp((reflectionColor), (finalSsrReflectionColor), ssrFraction);
-else
-		finalReflectionColor = Color::LinearToGamma(lerp(Color::GammaToLinear(reflectionColor), Color::GammaToLinear(finalSsrReflectionColor), ssrFraction));
+		if (SharedData::linearSettings.Linear)
+			finalReflectionColor = lerp((reflectionColor), (finalSsrReflectionColor), ssrFraction);
+		else
+			finalReflectionColor = Color::LinearToGamma(lerp(Color::GammaToLinear(reflectionColor), Color::GammaToLinear(finalSsrReflectionColor), ssrFraction));
 		return finalReflectionColor;
 	}
 	return Color::Tint(ReflectionColor.xyz) * VarAmounts.y;
@@ -731,10 +731,10 @@ DiffuseOutput GetWaterDiffuseColor(PS_INPUT input, float3 normal, float3 viewDir
 		skylighting = lerp(1.0, skylighting, Skylighting::getFadeOutFactor(input.WPosition.xyz));
 
 		float3 refractionDiffuseColorSkylight = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylighting);
-		if(SharedData::linearSettings.Linear)
-		refractionDiffuseColor = refractionDiffuseColor * refractionDiffuseColorSkylight;
-else
-		refractionDiffuseColor = Color::LinearToGamma(Color::GammaToLinear(refractionDiffuseColor) * refractionDiffuseColorSkylight);
+		if (SharedData::linearSettings.Linear)
+			refractionDiffuseColor = refractionDiffuseColor * refractionDiffuseColorSkylight;
+		else
+			refractionDiffuseColor = Color::LinearToGamma(Color::GammaToLinear(refractionDiffuseColor) * refractionDiffuseColorSkylight);
 #				endif
 	}
 
@@ -915,46 +915,44 @@ PS_OUTPUT main(PS_INPUT input)
 		sunColor *= ShadowSampling::GetWaterShadow(screenNoise, input.WPosition.xyz, eyeIndex);
 	}
 	float3 finalColor;
-		if(SharedData::linearSettings.Linear){
-#						if defined(VC)
-	float specularFraction = lerp(1, fresnel * diffuseOutput.refractionMul, distanceFactor);
-	float3 finalColorPreFog = lerp((diffuseColor), (specularColor), specularFraction) + (sunColor)*depthControl.w;
-	finalColor = lerp(finalColorPreFog, Color::Tint(input.FogParam.xyz) * PosAdjust[eyeIndex].w, input.FogParam.w);
-#						else
-	float specularFraction = lerp(1, fresnel, distanceFactor);
-	float3 finalColorPreFog = lerp((diffuseOutput.refractionDiffuseColor), (specularColor), specularFraction) + (sunColor)*depthControl.w;
-	finalColorPreFog = lerp(finalColorPreFog, Color::Tint(input.FogParam.xyz) * PosAdjust[eyeIndex].w, input.FogParam.w);
+	if (SharedData::linearSettings.Linear) {
+#					if defined(VC)
+		float specularFraction = lerp(1, fresnel * diffuseOutput.refractionMul, distanceFactor);
+		float3 finalColorPreFog = lerp((diffuseColor), (specularColor), specularFraction) + (sunColor)*depthControl.w;
+		finalColor = lerp(finalColorPreFog, Color::Tint(input.FogParam.xyz) * PosAdjust[eyeIndex].w, input.FogParam.w);
+#					else
+		float specularFraction = lerp(1, fresnel, distanceFactor);
+		float3 finalColorPreFog = lerp((diffuseOutput.refractionDiffuseColor), (specularColor), specularFraction) + (sunColor)*depthControl.w;
+		finalColorPreFog = lerp(finalColorPreFog, Color::Tint(input.FogParam.xyz) * PosAdjust[eyeIndex].w, input.FogParam.w);
 
-	float3 refractionColor = diffuseOutput.refractionColor;
+		float3 refractionColor = diffuseOutput.refractionColor;
 
-	float fogFactor = min(FogParam.w, pow(saturate(-diffuseOutput.depth * FogParam.y - FogParam.x), FogParam.z));
-	float3 fogColor = lerp(Color::Tint(FogNearColor.xyz), Color::Tint(FogFarColor.xyz), fogFactor);
-	refractionColor = lerp(refractionColor, fogColor, fogFactor);
+		float fogFactor = min(FogParam.w, pow(saturate(-diffuseOutput.depth * FogParam.y - FogParam.x), FogParam.z));
+		float3 fogColor = lerp(Color::Tint(FogNearColor.xyz), Color::Tint(FogFarColor.xyz), fogFactor);
+		refractionColor = lerp(refractionColor, fogColor, fogFactor);
 
-	finalColorPreFog = lerp(refractionColor, finalColorPreFog, diffuseOutput.refractionMul);
-	finalColor = finalColorPreFog;
-#						endif
-}
-else{
-#						if defined(VC)
-	float specularFraction = lerp(1, fresnel * diffuseOutput.refractionMul, distanceFactor);
-	float3 finalColorPreFog = lerp(diffuseColor, specularColor, specularFraction) + sunColor * depthControl.w;
-	float3 finalColor = lerp(finalColorPreFog, input.FogParam.xyz * PosAdjust[eyeIndex].w, input.FogParam.w);
-#						else
-	float specularFraction = lerp(1, fresnel, distanceFactor);
-	float3 finalColorPreFog = lerp(diffuseOutput.refractionDiffuseColor, specularColor, specularFraction) + sunColor * depthControl.w;
-	finalColorPreFog = lerp(finalColorPreFog, input.FogParam.xyz * PosAdjust[eyeIndex].w, input.FogParam.w);
+		finalColorPreFog = lerp(refractionColor, finalColorPreFog, diffuseOutput.refractionMul);
+		finalColor = finalColorPreFog;
+#					endif
+	} else {
+#					if defined(VC)
+		float specularFraction = lerp(1, fresnel * diffuseOutput.refractionMul, distanceFactor);
+		float3 finalColorPreFog = lerp(diffuseColor, specularColor, specularFraction) + sunColor * depthControl.w;
+		float3 finalColor = lerp(finalColorPreFog, input.FogParam.xyz * PosAdjust[eyeIndex].w, input.FogParam.w);
+#					else
+		float specularFraction = lerp(1, fresnel, distanceFactor);
+		float3 finalColorPreFog = lerp(diffuseOutput.refractionDiffuseColor, specularColor, specularFraction) + sunColor * depthControl.w;
+		finalColorPreFog = lerp(finalColorPreFog, input.FogParam.xyz * PosAdjust[eyeIndex].w, input.FogParam.w);
 
-	float3 refractionColor = diffuseOutput.refractionColor;
+		float3 refractionColor = diffuseOutput.refractionColor;
 
-	float fogFactor = min(FogParam.w, pow(saturate(-diffuseOutput.depth * FogParam.y - FogParam.x), FogParam.z));
-	float3 fogColor = lerp(FogNearColor.xyz, FogFarColor.xyz, fogFactor);
-	refractionColor = lerp(refractionColor, fogColor, fogFactor);
+		float fogFactor = min(FogParam.w, pow(saturate(-diffuseOutput.depth * FogParam.y - FogParam.x), FogParam.z));
+		float3 fogColor = lerp(FogNearColor.xyz, FogFarColor.xyz, fogFactor);
+		refractionColor = lerp(refractionColor, fogColor, fogFactor);
 
-	finalColor = lerp(refractionColor, finalColorPreFog, diffuseOutput.refractionMul);
-#						endif
-
-}
+		finalColor = lerp(refractionColor, finalColorPreFog, diffuseOutput.refractionMul);
+#					endif
+	}
 #				endif
 	psout.Lighting = saturate(float4(Color::Output(finalColor), isSpecular));
 	//psout.Lighting.xyz = Color::Output(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(CubeMapSampler, reflect(viewDirection, float3(0, 0, 1)), 0).xyz);
