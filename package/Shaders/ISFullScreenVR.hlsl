@@ -1,5 +1,6 @@
 #include "Common/DummyVSTexCoord.hlsl"
 #include "Common/VR.hlsli"
+#include "Common/Color.hlsli"
 
 typedef VS_OUTPUT PS_INPUT;
 

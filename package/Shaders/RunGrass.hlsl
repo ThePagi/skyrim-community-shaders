@@ -533,7 +533,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			endif  // TRUE_PBR
 
 	float3 dirLightColor = Color::Light(SharedData::DirLightColor.xyz);
-	float3 dirLightColorMultiplier = 1;
+	float3 dirLightColorMultiplier = SharedData::DirLightColor.w;
 
 	float dirLightAngle = dot(normal, SharedData::DirLightDirection.xyz);
 
@@ -627,7 +627,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 					continue;
 
 				float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-				float3 lightColor = Color::Light(light.color.xyz) * intensityMultiplier;
+				float3 lightColor = light.fade * Color::Light(light.color.xyz) * intensityMultiplier;
 
 				float lightShadow = 1.0;
 
@@ -736,7 +736,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	float3 normalVS = normalize(FrameBuffer::WorldToView(normal, false, eyeIndex));
 #			if defined(TRUE_PBR)
-	psout.Albedo = float4((indirectDiffuseLobeWeight * Color::AlbedoPreMult), 1);
+	psout.Albedo = float4(indirectDiffuseLobeWeight, 1);
 	psout.NormalGlossiness = float4(GBuffer::EncodeNormal(normalVS), 1 - pbrSurfaceProperties.Roughness, 1);
 	psout.Reflectance = float4(indirectSpecularLobeWeight, 1);
 	psout.Parameters = float4(0, 0, 1, 1);
@@ -808,7 +808,7 @@ PS_OUTPUT main(PS_INPUT input)
 #			endif
 	}
 
-	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * dirShadow * lerp(dirDetailShadow, 1.0, 0.5) * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * dirShadow * lerp(dirDetailShadow, 1.0, 0.5) * 0.5;
 
 #			if defined(LIGHT_LIMIT_FIX)
 	uint clusterIndex = 0;

@@ -256,8 +256,8 @@ VS_OUTPUT main(VS_INPUT input)
 	float fogColorParam = min(FogParam.w,
 		exp2(FogParam.z * log2(saturate(length(viewPos.xyz) * FogParam.y - FogParam.x))));
 
-	vsout.FogParam.xyz = lerp(Color::Tint(FogNearColor.xyz), Color::Tint(FogFarColor.xyz), fogColorParam);
-	vsout.FogParam.w = Color::Tint(fogColorParam).x;
+	vsout.FogParam.xyz = lerp(FogNearColor.xyz, FogFarColor.xyz, fogColorParam);
+	vsout.FogParam.w = fogColorParam.x;
 #	endif
 
 	float4 texCoord = float4(0, 0, 1, 0);
@@ -529,7 +529,7 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 	float3 color = Color::Light(DLightColor.xyz);
 
 	if ((Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::EffectShadows) && !SharedData::InMapMenu && !SharedData::InInterior) {
-		float3 dirLightColor = Color::Light(SharedData::DirLightColor) * 0.5;
+		float3 dirLightColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * 0.5;
 		float3 ambientColor = Color::Light(mul(SharedData::DirectionalAmbient, float4(0, 0, 1, 1)));
 
 		color = ambientColor;
@@ -580,9 +580,9 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 #		endif
 	{
 #		if defined(LINEAR_LIGHTING)
-		color.x += dot(pow(PLightColorR, 2.2) * lightFadeMul, 1.0.xxxx);
-		color.y += dot(pow(PLightColorG, 2.2) * lightFadeMul, 1.0.xxxx);
-		color.z += dot(pow(PLightColorB, 2.2) * lightFadeMul, 1.0.xxxx);
+		color.x += dot(pow(abs(PLightColorR), 2.2) * lightFadeMul, 1.0.xxxx);
+		color.y += dot(pow(abs(PLightColorG), 2.2) * lightFadeMul, 1.0.xxxx);
+		color.z += dot(pow(abs(PLightColorB), 2.2) * lightFadeMul, 1.0.xxxx);
 #		else
 		color.x += dot(PLightColorR * lightFadeMul, 1.0.xxxx);
 		color.y += dot(PLightColorG * lightFadeMul, 1.0.xxxx);
@@ -675,7 +675,7 @@ PS_OUTPUT main(PS_INPUT input)
 				float lightDist = length(lightDirection);
 				float intensityFactor = saturate(lightDist / light.radius);
 				float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-				float3 lightColor = Color::Light(light.color.xyz) * intensityMultiplier * 0.5;
+				float3 lightColor = Color::Light(light.color.xyz) * light.fade * intensityMultiplier * 0.5;
 				propertyColor += lightColor;
 			}
 		}
@@ -696,7 +696,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(TEXTURE)
 #		if defined(LINEAR_LIGHTING) && defined(ADDBLEND)
 		[branch] if (!(Permutation::PixelShaderDescriptor & Permutation::EffectFlags::GrayscaleToColor))
-			baseTexColor.rgb = Color::Tint(baseTexColor.rgb * Color::AlbedoPreMult);
+			baseTexColor.rgb = Color::Tint(baseTexColor.rgb);
 		else
 #		endif
 			baseTexColor.rgb = Color::Diffuse(baseTexColor.rgb);
@@ -780,11 +780,11 @@ PS_OUTPUT main(PS_INPUT input)
 
 #	if !defined(MOTIONVECTORS_NORMALS)
 #		if defined(ADDBLEND)
-	float3 blendedColor = lightColor * (1 - input.FogParam.www);
+	float3 blendedColor = lightColor * (1 - Color::Tint(input.FogParam.www));
 #		elif defined(MULTBLEND) || defined(MULTBLEND_DECAL)
 	float3 blendedColor = lerp(lightColor, 1.0.xxx, saturate(1.5 * input.FogParam.w).xxx);
 #		else
-	float3 blendedColor = lerp(lightColor, input.FogParam.xyz, input.FogParam.www);
+	float3 blendedColor = lerp(lightColor, Color::Tint(input.FogParam.xyz), input.FogParam.www);
 #		endif
 #	else
 	float3 blendedColor = lightColor.xyz;

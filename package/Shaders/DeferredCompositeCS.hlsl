@@ -74,12 +74,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 	half3 normalGlossiness = NormalRoughnessTexture[dispatchID.xy];
 	half3 normalVS = GBuffer::DecodeNormal(normalGlossiness.xy);
 
-#if defined(LINEAR_LIGHTING)
-	//half3 diffuseColor = Color::GammaToLinear(MainRW[dispatchID.xy]);
 	half3 diffuseColor = MainRW[dispatchID.xy];
-#else
-	half3 diffuseColor = MainRW[dispatchID.xy];
-#endif
 	half3 specularColor = SpecularTexture[dispatchID.xy];
 	half3 albedo = AlbedoTexture[dispatchID.xy];
 	half3 masks2 = Masks2Texture[dispatchID.xy];
@@ -103,7 +98,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out half ao, out half3 il)
 #if defined(LINEAR_LIGHTING)
 	half3 color = diffuseColor + specularColor;
 #else
-	half3 color = lerp(diffuseColor + specularColor, Color::LinearToGamma(Color::GammaToLinear(diffuseColor) + Color::GammaToLinear(specularColor)), pbrWeight);
+	half3 color = diffuseColor + specularColor;
 #endif
 
 #if defined(DYNAMIC_CUBEMAPS)

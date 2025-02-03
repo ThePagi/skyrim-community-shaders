@@ -823,7 +823,7 @@ float3 GetFacegenBaseColor(float3 rawBaseColor, float2 uv)
 {
 	float3 detailColor = Color::Tint(TexDetailSampler.Sample(SampDetailSampler, uv).xyz);
 	detailColor = Color::Tint(float3(3.984375, 3.984375, 3.984375)) * (Color::Tint(float3(0.00392156886, 0, 0.00392156886)) + detailColor);
-	float3 tintColor = Color::Diffuse(TexTintSampler.Sample(SampTintSampler, uv).xyz);
+	float3 tintColor = Color::Tint(TexTintSampler.Sample(SampTintSampler, uv).xyz);
 	tintColor = tintColor * rawBaseColor * 2.0.xxx;
 	tintColor = tintColor - tintColor * rawBaseColor;
 	return (rawBaseColor * rawBaseColor + tintColor) * detailColor;
@@ -835,7 +835,7 @@ float3 GetFacegenRGBTintBaseColor(float3 rawBaseColor, float2 uv)
 {
 	float3 tintColor = Color::Tint(TintColor.xyz) * rawBaseColor * 2.0.xxx;
 	tintColor = tintColor - tintColor * rawBaseColor;
-	return Color::Diffuse(float3(1.01171875, 0.99609375, 1.01171875)) * (rawBaseColor * rawBaseColor + tintColor);
+	return Color::Tint(float3(1.01171875, 0.99609375, 1.01171875)) * (rawBaseColor * rawBaseColor + tintColor);
 }
 #	endif
 
@@ -1899,7 +1899,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	waterRoughnessSpecular = 1.0 - wetnessGlossinessSpecular;
 #	endif
 
-	float3 dirLightColor = Color::Light(DirLightColor.xyz);
+	float3 dirLightColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w;
 	float3 dirLightColorMultiplier = 1;
 
 #	if defined(WATER_EFFECTS)
@@ -2193,7 +2193,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 			continue;
 
 		float intensityMultiplier = 1 - intensityFactor * intensityFactor;
-		float3 lightColor = Color::Light(light.color.xyz * intensityMultiplier);
+		float3 lightColor = light.fade * Color::Light(light.color.xyz) * intensityMultiplier;
 		float lightShadow = 1.0;
 
 		float shadowComponent = 1.0;
@@ -2339,7 +2339,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	diffuseColor += emitColor.xyz;
 #	endif
 
-	float3 directionalAmbientColor = Color::Tint(mul(DirectionalAmbient, modelNormal));
+	float3 directionalAmbientColor = Color::Light(mul(DirectionalAmbient, modelNormal));
 
 	float3 reflectionDiffuseColor = diffuseColor + directionalAmbientColor;
 
@@ -2347,12 +2347,12 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float skylightingDiffuse = SphericalHarmonics::FuncProductIntegral(skylightingSH, SphericalHarmonics::EvaluateCosineLobe(float3(worldSpaceNormal.xy, worldSpaceNormal.z * 0.5 + 0.5))) / Math::PI;
 	skylightingDiffuse = lerp(1.0, skylightingDiffuse, Skylighting::getFadeOutFactor(input.WorldPosition.xyz));
 	skylightingDiffuse = Skylighting::mixDiffuse(SharedData::skylightingSettings, skylightingDiffuse);
-#		if !defined(TRUE_PBR) && !defined(LINEAR_LIGHTING)
-	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
+#		if !defined(LINEAR_LIGHTING)
+	directionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
 #		endif
 	directionalAmbientColor *= skylightingDiffuse;
-#		if !defined(TRUE_PBR) && !defined(LINEAR_LIGHTING)
-	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor * Color::LightPreMult);
+#		if !defined(LINEAR_LIGHTING)
+	directionalAmbientColor = Color::LinearToGamma(directionalAmbientColor);
 #		endif
 #	endif
 
@@ -2603,10 +2603,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		if !defined(DEFERRED)
 	color.xyz += specularColor;
 #		endif
+#	endif
 #		if !defined(LINEAR_LIGHTING)
 	color.xyz = Color::GammaToLinear(color.xyz);
 #		endif
-#	endif
+
 
 #	if defined(WETNESS_EFFECTS) && !defined(TRUE_PBR)
 	color.xyz += wetnessSpecular * wetnessGlossinessSpecular;
@@ -2616,7 +2617,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz += specularColorPBR;
 #	endif
 
-#	if !defined(LINEAR_LIGHTING) && !defined(TRUE_PBR)
+#	if !defined(LINEAR_LIGHTING)
 	color.xyz = Color::LinearToGamma(color.xyz);
 #	endif
 
@@ -2632,7 +2633,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			if defined(LINEAR_LIGHTING)
 		indirectDiffuseLobeWeight = lerp(indirectDiffuseLobeWeight, input.Color.xyz * lodLandColor * lodLandFadeFactor, lodLandBlendFactor);
 #			else
-		indirectDiffuseLobeWeight = lerp(indirectDiffuseLobeWeight, Color::GammaToLinear(input.Color.xyz * lodLandColor * lodLandFadeFactor) / Color::AlbedoPreMult, lodLandBlendFactor);
+		indirectDiffuseLobeWeight = lerp(indirectDiffuseLobeWeight, input.Color.xyz * lodLandColor * lodLandFadeFactor, lodLandBlendFactor);
 #			endif
 		indirectSpecularLobeWeight = lerp(indirectSpecularLobeWeight, 0, lodLandBlendFactor);
 		pbrGlossiness = lerp(pbrGlossiness, 0, lodLandBlendFactor);
@@ -2787,7 +2788,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	psout.Specular = float4(Color::Output(outputSpecular), psout.Diffuse.w);
 
 #		if defined(TRUE_PBR)
-	float3 outputAlbedo = indirectDiffuseLobeWeight * Color::AlbedoPreMult;
+	float3 outputAlbedo = indirectDiffuseLobeWeight;
 #		else
 	float3 outputAlbedo = baseColor.xyz * vertexColor;
 

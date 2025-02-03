@@ -66,16 +66,16 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 
 #if defined(LINEAR_LIGHTING)
 	half3 linAlbedo = albedo;
-	half3 linDirectionalAmbientColor = Color::Tint(directionalAmbientColor) * (Color::AlbedoPreMult * lerp(1, Math::PI, pbrWeight));  //no TRUE_PBR define in here
+	half3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);  //no TRUE_PBR define in here
 	half3 linDiffuseColor = diffuseColor;
 
 	half3 linAmbient = linAlbedo * linDirectionalAmbientColor;
 #else
-	half3 linAlbedo = Color::GammaToLinear(albedo) / Color::AlbedoPreMult;
-	half3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor) / Color::LightPreMult;
+	half3 linAlbedo = Color::GammaToLinear(albedo) * Color::AlbedoMult;
+	half3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
 	half3 linDiffuseColor = Color::GammaToLinear(diffuseColor);
 
-	half3 linAmbient = lerp(Color::GammaToLinear(albedo * directionalAmbientColor), linAlbedo * linDirectionalAmbientColor, pbrWeight);
+	half3 linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
 #endif
 
 	half visibility = 1.0;
@@ -120,9 +120,9 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 #	endif
 
 	visibility *= ssgiAo;
-#	if defined(INTERIOR)
-	linDiffuseColor *= ssgiAo;
-#	endif
+//#	if defined(INTERIOR)
+//	linDiffuseColor *= ssgiAo;
+//#	endif
 
 	float clampedLinAlbedo = min(linAlbedo, 0.5);
 	DiffuseAmbientRW[dispatchID.xy] = linAmbient * visibility + clampedLinAlbedo * ssgiIl;
@@ -132,12 +132,11 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out half ao, out half3 il)
 	linAmbient *= visibility;
 
 #if defined(LINEAR_LIGHTING)
-	//diffuseColor = Color::LinearToGamma(linDiffuseColor + linAmbient); // temporarily because the buffer doesnt work well with linear?
 	diffuseColor = linDiffuseColor + linAmbient;
 #else
 	diffuseColor = Color::LinearToGamma(linDiffuseColor);
-	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::LightPreMult);
-	diffuseColor = lerp(diffuseColor + directionalAmbientColor * albedo, Color::LinearToGamma(linDiffuseColor + linAmbient), pbrWeight);
+	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility * Color::AlbedoMult);
+	diffuseColor = diffuseColor + directionalAmbientColor * albedo;
 #endif
 
 	MainRW[dispatchID.xy] = diffuseColor;

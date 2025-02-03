@@ -1,7 +1,7 @@
 #ifndef __COLOR_DEPENDENCY_HLSL__
 #define __COLOR_DEPENDENCY_HLSL__
-
 #include "Common/Math.hlsli"
+#include "Common/SharedData.hlsli"
 
 namespace Color
 {
@@ -55,13 +55,14 @@ namespace Color
 		return pow(abs(color), 1.0 / 2.2);
 	}
 
+#if defined(PSHADER) || defined(CSHADER) || defined(COMPUTESHADER)
 #if defined(LINEAR_LIGHTING)
 	float3 Light(float3 color)
 	{
 #	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
-		return GammaToLinear(color) * AlbedoPreMult * Math::PI;
+		return GammaToLinear(color) * Math::PI;
 #	else
-		return GammaToLinear(color) * AlbedoPreMult;
+		return GammaToLinear(color);
 #	endif
 	}
 	float3 Diffuse(float3 color)
@@ -69,22 +70,23 @@ namespace Color
 #	if defined(TRUE_PBR)
 		return color;
 #	else
-		return GammaToLinear(color) * AlbedoMult;
+		return pow(color, SharedData::extendedMaterialSettings.ColorMatchingPow) * SharedData::extendedMaterialSettings.ColorMatchingMult;
 #	endif
 	}
 	float3 Tint(float3 color)
 	{
 		return GammaToLinear(color);
 	}
-
+	float3 Ambient(float3 color)
+	{
+		return GammaToLinear(color);
+	}
 	float3 Output(float3 color)
 	{
 #	if defined(DEFERRED)
 		return color;
 #	else
 		return color;
-		//return 0.22;
-		//return LinearToGamma(color);
 #	endif
 	}
 	float3 LLToGamma(float3 color)
@@ -92,14 +94,18 @@ namespace Color
 		return LinearToGamma(color);
 	}
 	float3 VanillaToPBR(float3 color){
-		return GammaToLinear(color) * AlbedoMult;
+		return pow(color, SharedData::extendedMaterialSettings.ColorMatchingPow) * SharedData::extendedMaterialSettings.ColorMatchingMult;
 	}
 
 #else
 
 	float3 Diffuse(float3 color)
 	{
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+		return pow(color / SharedData::extendedMaterialSettings.ColorMatchingMult, 1./SharedData::extendedMaterialSettings.ColorMatchingPow);
+#	else
 		return color;
+#	endif
 	}
 	float3 Tint(float3 color)
 	{
@@ -107,19 +113,19 @@ namespace Color
 	}
 	float3 Light(float3 color)
 	{
-#	if defined(TRUE_PBR)
-		return GammaToLinear(color) * AlbedoPreMult * Math::PI;
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+		return color * Math::PI;
 #	else
 		return color;
 #	endif
 	}
+	float3 Ambient(float3 color)
+	{
+		return color;
+	}
 	float3 Output(float3 color)
 	{
-#	if defined(TRUE_PBR)
-		return LinearToGamma(color);
-#	else
 		return color;
-#	endif
 	}
 	float3 LLToGamma(float3 color)
 	{
@@ -129,7 +135,7 @@ namespace Color
 		return color;
 	}
 #endif
-
+#endif
 }
 
 #endif  //__COLOR_DEPENDENCY_HLSL__

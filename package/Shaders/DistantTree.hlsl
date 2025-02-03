@@ -231,7 +231,7 @@ PS_OUTPUT main(PS_INPUT input)
 	}
 #			endif
 
-	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * dirShadow * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * dirShadow * 0.5;
 
 	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
 	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
@@ -253,7 +253,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Albedo = float4(Color::Output(baseColor.xyz), 1);
 	psout.Masks = float4(0, 0, 1, 0);
 #		else
-	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * 0.5;
 
 	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
 	float3 ddy = ddy_coarse(input.WorldPosition.xyz);

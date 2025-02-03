@@ -106,7 +106,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 ppColor = 0.0;
 	{
 		inputColor *= avgValue.y / avgValue.x;
-
 		float3 blendedColor;
 		[branch] if (Param.z > 0.5)
 		{
@@ -120,7 +119,7 @@ PS_OUTPUT main(PS_INPUT input)
 			blendedColor = compressedHuePreserving;
 		}
 #		if defined(LINEAR_LIGHTING)
-		bloomColor *= 0.016;  // workaround to reduce extreme bloom until bloom shader can be fixed for linear
+		bloomColor *= 0.01;  // workaround to reduce extreme bloom until bloom shader can be fixed for linear
 #		endif
 		blendedColor += saturate(Param.x - blendedColor) * bloomColor;
 		//blendedColor = Param.x;
@@ -136,7 +135,7 @@ PS_OUTPUT main(PS_INPUT input)
 		ppColor = max(0, linearColor);
 	}
 
-	float3 srgbColor = ppColor;
+	float3 srgbColor = (ppColor);
 
 #		if defined(FADE)
 	srgbColor = lerp(srgbColor, Fade.xyz, Fade.w);

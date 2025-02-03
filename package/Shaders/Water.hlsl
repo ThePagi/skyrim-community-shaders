@@ -903,7 +903,7 @@ PS_OUTPUT main(PS_INPUT input)
 			float3 H = normalize(normalizedLightDirection - viewDirection);
 			float HdotN = saturate(dot(H, normal));
 			float3 lightColor = Color::Light(light.color.xyz);
-			lightColor = lightColor * pow(HdotN, FresnelRI.z);
+			lightColor = lightColor * pow(HdotN, FresnelRI.z) * light.fade;
 			specularLighting += lightColor * intensityMultiplier;
 		}
 	}
