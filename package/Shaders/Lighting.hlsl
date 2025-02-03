@@ -2604,10 +2604,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz += specularColor;
 #		endif
 #	endif
-#		if !defined(LINEAR_LIGHTING)
+#	if !defined(LINEAR_LIGHTING)
 	color.xyz = Color::GammaToLinear(color.xyz);
-#		endif
-
+#	endif
 
 #	if defined(WETNESS_EFFECTS) && !defined(TRUE_PBR)
 	color.xyz += wetnessSpecular * wetnessGlossinessSpecular;

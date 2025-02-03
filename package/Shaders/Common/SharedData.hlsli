@@ -40,12 +40,12 @@ namespace SharedData
 		bool EnableParallax;
 		bool EnableTerrainParallax;
 		bool EnableHeightBlending;
-		
+
 		bool EnableShadows;
 		bool ExtendShadows;
 		bool EnableParallaxWarpingFix;
 		float ColorMatchingPow;
-	
+
 		float ColorMatchingMult;
 		float3 pad0;
 	};
