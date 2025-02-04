@@ -41,7 +41,7 @@ namespace Color
 			tmp - color.y);
 	}
 
-	const static float AlbedoMult = 1;                               // obsolete, only used in some old pbr matching code, not in LINEAR_LIGHTING
+	const static float AlbedoMult = 1;                                 // obsolete, only used in some old pbr matching code, not in LINEAR_LIGHTING
 	const static float AlbedoPreMult = 1 / AlbedoMult;                 // greater value -> brighter pbr
 	const static float LightPreMult = 1 / (Math::PI * AlbedoPreMult);  // ensure 1/PI as product
 
@@ -58,47 +58,47 @@ namespace Color
 #if defined(PSHADER) || defined(CSHADER) || defined(COMPUTESHADER)
 	float3 Light(float3 color)
 	{
-		if(SharedData::linearSettings.Linear)
-#		if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
-		return GammaToLinear(color) * Math::PI;
-#		else
-		return GammaToLinear(color);
-#		endif
+		if (SharedData::linearSettings.Linear)
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+			return GammaToLinear(color) * Math::PI;
+#	else
+			return GammaToLinear(color);
+#	endif
 		else
-#		if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
-		return color * Math::PI;
-#		else
-		return color;
-#		endif
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+			return color * Math::PI;
+#	else
+			return color;
+#	endif
 	}
 	float3 Diffuse(float3 color)
 	{
-		if(SharedData::linearSettings.Linear)
-#		if defined(TRUE_PBR)
-		return color;
-#		else
-		return pow(color, SharedData::linearSettings.ColorMatchingPow) * SharedData::linearSettings.ColorMatchingMult;
-#		endif
+		if (SharedData::linearSettings.Linear)
+#	if defined(TRUE_PBR)
+			return color;
+#	else
+			return pow(color, SharedData::linearSettings.ColorMatchingPow) * SharedData::linearSettings.ColorMatchingMult;
+#	endif
 		else
-#		if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
-		return pow(color / SharedData::linearSettings.ColorMatchingMult, 1. / SharedData::linearSettings.ColorMatchingPow);
-#		else
-		return color;
-#		endif
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+			return pow(color / SharedData::linearSettings.ColorMatchingMult, 1. / SharedData::linearSettings.ColorMatchingPow);
+#	else
+			return color;
+#	endif
 	}
 	float3 Tint(float3 color)
 	{
-		if(SharedData::linearSettings.Linear)
-		return GammaToLinear(color);
+		if (SharedData::linearSettings.Linear)
+			return GammaToLinear(color);
 		else
-		return color;
+			return color;
 	}
 	float3 Ambient(float3 color)
 	{
-		if(SharedData::linearSettings.Linear)
-		return GammaToLinear(color);
-				else
-		return color;
+		if (SharedData::linearSettings.Linear)
+			return GammaToLinear(color);
+		else
+			return color;
 	}
 	float3 Output(float3 color)
 	{
@@ -106,17 +106,17 @@ namespace Color
 	}
 	float3 LLToGamma(float3 color)
 	{
-		if(SharedData::linearSettings.Linear)
-		return LinearToGamma(color);
+		if (SharedData::linearSettings.Linear)
+			return LinearToGamma(color);
 		else
-		return color;
+			return color;
 	}
 	float3 VanillaToPBR(float3 color)
 	{
-		if(SharedData::linearSettings.Linear)
-		return pow(color, SharedData::linearSettings.ColorMatchingPow) * SharedData::linearSettings.ColorMatchingMult;
+		if (SharedData::linearSettings.Linear)
+			return pow(color, SharedData::linearSettings.ColorMatchingPow) * SharedData::linearSettings.ColorMatchingMult;
 		else
-		return color;
+			return color;
 	}
 #endif
 }
