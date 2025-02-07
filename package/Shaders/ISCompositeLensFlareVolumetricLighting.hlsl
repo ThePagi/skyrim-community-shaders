@@ -1,3 +1,4 @@
+#include "Common/Color.hlsli"
 #include "Common/DummyVSTexCoord.hlsl"
 #include "Common/FrameBuffer.hlsli"
 
@@ -29,11 +30,11 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(VOLUMETRIC_LIGHTING)
 	float2 screenPosition = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(input.TexCoord);
 	float volumetricLightingPower = VLSourceTex.Sample(VLSourceSampler, screenPosition).x;
-	color += VolumetricLightingColor.xyz * volumetricLightingPower;
+	color += Color::Tint(VolumetricLightingColor.xyz) * Color::Tint(volumetricLightingPower);
 #	endif
 
 #	if defined(LENS_FLARE)
-	float3 lensFlareColor = LFSourceTex.Sample(LFSourceSampler, input.TexCoord).xyz;
+	float3 lensFlareColor = Color::Tint(LFSourceTex.Sample(LFSourceSampler, input.TexCoord).xyz);
 	color += lensFlareColor;
 #	endif
 

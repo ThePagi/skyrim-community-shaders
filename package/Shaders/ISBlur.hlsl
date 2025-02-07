@@ -26,7 +26,7 @@ cbuffer PerGeometry : register(b2)
 
 float4 GetImageColor(float2 texCoord, float blurScale)
 {
-	return ImageTex.Sample(ImageSampler, texCoord) * float4(blurScale.xxx, 1);
+	return Color::LLToGamma(ImageTex.Sample(ImageSampler, texCoord)) * float4(blurScale.xxx, 1);
 }
 
 PS_OUTPUT main(PS_INPUT input)

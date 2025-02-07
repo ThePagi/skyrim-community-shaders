@@ -59,13 +59,24 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out float ao, out float3 il)
 
 	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normalWS, 1.0));
 
-	float3 linAlbedo = Color::GammaToLinear(albedo);
-	float3 linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
-	float3 linDiffuseColor = Color::GammaToLinear(diffuseColor);
+	half3 linAlbedo;
+	half3 linDirectionalAmbientColor;
+	half3 linDiffuseColor;
+	half3 linAmbient;
+	if (SharedData::linearSettings.Linear) {
+		linAlbedo = albedo;
+		linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);  //no TRUE_PBR define in here
+		linDiffuseColor = diffuseColor;
 
-	float3 linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
+		linAmbient = linAlbedo * linDirectionalAmbientColor;
+	} else {
+		linAlbedo = Color::GammaToLinear(albedo);
+		linDirectionalAmbientColor = Color::GammaToLinear(directionalAmbientColor);
+		linDiffuseColor = Color::GammaToLinear(diffuseColor);
 
-	float visibility = 1.0;
+		linAmbient = Color::GammaToLinear(albedo * directionalAmbientColor);
+	}
+	half visibility = 1.0;
 #if defined(SKYLIGHTING)
 	float rawDepth = DepthTexture[dispatchID.xy];
 	float4 positionCS = float4(2 * float2(uv.x, -uv.y + 1) - 1, rawDepth, 1);
@@ -107,9 +118,9 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out float ao, out float3 il)
 #	endif
 
 	visibility *= ssgiAo;
-#	if defined(INTERIOR)
-	linDiffuseColor *= ssgiAo;
-#	endif
+	//#	if defined(INTERIOR)
+	//	linDiffuseColor *= ssgiAo;
+	//#	endif
 
 	float clampedLinAlbedo = min(linAlbedo, 0.5);
 	DiffuseAmbientRW[dispatchID.xy] = linAmbient * visibility + clampedLinAlbedo * ssgiIl;
@@ -117,10 +128,13 @@ void SampleSSGI(uint2 pixCoord, float3 normalWS, out float ao, out float3 il)
 #endif
 
 	linAmbient *= visibility;
-	diffuseColor = Color::LinearToGamma(linDiffuseColor);
-	directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility);
 
-	diffuseColor = diffuseColor + directionalAmbientColor * albedo;
-
+	if (SharedData::linearSettings.Linear)
+		diffuseColor = linDiffuseColor + linAmbient;
+	else {
+		diffuseColor = Color::LinearToGamma(linDiffuseColor);
+		directionalAmbientColor = Color::LinearToGamma(linDirectionalAmbientColor * visibility);
+		diffuseColor = diffuseColor + directionalAmbientColor * albedo;
+	}
 	MainRW[dispatchID.xy] = float4(diffuseColor, 1);
 };

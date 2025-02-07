@@ -1,3 +1,4 @@
+#include "Common/Color.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
 #include "Common/MotionBlur.hlsli"
@@ -205,7 +206,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Diffuse.w = 0;
 #	else
 	float4 baseColor = TexDiffuse.Sample(SampDiffuse, input.TexCoord.xy);
-
+	baseColor.rgb = Color::Diffuse(baseColor.rgb);
 	if ((baseColor.w - AlphaTestRefRS) < 0) {
 		discard;
 	}
@@ -224,18 +225,18 @@ PS_OUTPUT main(PS_INPUT input)
 	if (dirShadow != 0.0)
 		dirShadow *= ShadowSampling::GetWorldShadow(input.WorldPosition, FrameBuffer::CameraPosAdjust[eyeIndex], eyeIndex);
 
-	float3 diffuseColor = SharedData::DirLightColor.xyz * dirShadow * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * dirShadow * 0.5;
 
 	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
 	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
 	float3 normal = normalize(cross(ddx, ddy));
 
 #			if !defined(SSGI)
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
+	float3 directionalAmbientColor = Color::Ambient(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 	diffuseColor += directionalAmbientColor;
 #			endif
 
-	psout.Diffuse.xyz = diffuseColor * baseColor.xyz;
+	psout.Diffuse.xyz = Color::Output(diffuseColor * baseColor.xyz);
 	psout.Diffuse.w = 1;
 
 	psout.MotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
@@ -243,22 +244,22 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Normal.xy = GBuffer::EncodeNormal(FrameBuffer::WorldToView(normal, false, eyeIndex));
 	psout.Normal.zw = 0;
 
-	psout.Albedo = float4(baseColor.xyz, 1);
+	psout.Albedo = float4(Color::Output(baseColor.xyz), 1);
 	psout.Masks = float4(0, 0, 1, 0);
 #		else
 	float dirShadow = ShadowSampling::GetWorldShadow(input.WorldPosition, FrameBuffer::CameraPosAdjust[eyeIndex], eyeIndex);
 
-	float3 diffuseColor = SharedData::DirLightColor.xyz * dirShadow * 0.5;
+	float3 diffuseColor = Color::Light(SharedData::DirLightColor.xyz) * SharedData::DirLightColor.w * dirShadow * 0.5;
 
 	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
 	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
 	float3 normal = normalize(cross(ddx, ddy));
 
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
+	float3 directionalAmbientColor = Color::Ambient(mul(SharedData::DirectionalAmbient, float4(normal, 1.0)));
 	diffuseColor += directionalAmbientColor;
 
 	float3 color = diffuseColor * baseColor.xyz;
-	psout.Diffuse = float4(color, 1.0);
+	psout.Diffuse = float4(Color::Output(color), 1.0);
 #		endif  // DEFERRED
 #	endif      // RENDER_DEPTH
 

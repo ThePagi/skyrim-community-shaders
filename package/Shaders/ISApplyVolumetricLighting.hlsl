@@ -1,3 +1,4 @@
+#include "Common/Color.hlsli"
 #include "Common/DummyVSTexCoord.hlsl"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
@@ -86,7 +87,6 @@ PS_OUTPUT main(PS_INPUT input)
 	} else {
 		psout.VL = adjustedVl;
 	}
-
 	return psout;
 }
 #endif

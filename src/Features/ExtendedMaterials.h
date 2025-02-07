@@ -17,7 +17,6 @@ struct ExtendedMaterials : Feature
 	struct alignas(16) Settings
 	{
 		uint EnableComplexMaterial = 1;
-
 		uint EnableParallax = 1;
 		uint EnableTerrain = 0;
 		uint EnableHeightBlending = 1;

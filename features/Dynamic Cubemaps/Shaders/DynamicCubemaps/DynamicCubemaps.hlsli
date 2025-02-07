@@ -32,7 +32,8 @@ namespace DynamicCubemaps
 		horizon *= horizon * horizon;
 
 		float3 specularIrradiance = EnvReflectionsTexture.SampleLevel(SampColorSampler, R, level).xyz;
-		specularIrradiance = Color::GammaToLinear(specularIrradiance);
+		if (!SharedData::linearSettings.Linear)
+			specularIrradiance = Color::GammaToLinear(specularIrradiance);
 		specularIrradiance *= horizon;
 
 		return specularIrradiance;

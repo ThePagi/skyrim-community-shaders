@@ -80,17 +80,21 @@ float smoothbumpstep(float edge0, float edge1, float x)
 		float linearDepth = SharedData::GetScreenDepth(depth);
 
 #if defined(REFLECTIONS)
-		if (linearDepth > 16.5) {  // Ignore objects which are too close
+		if (linearDepth > 16.5)  // Ignore objects which are too close
 #else
-		if (linearDepth > 16.5 && depth != 1.0) {  // Ignore objects which are too close or the sky
+		if (linearDepth > 16.5 && depth != 1.0)  // Ignore objects which are too close or the sky
 #endif
+		{
 			half4 positionCS = half4(2 * half2(uv.x, -uv.y + 1) - 1, depth, 1);
 			positionCS = mul(FrameBuffer::CameraViewProjInverse[0], positionCS);
 			positionCS.xyz = positionCS.xyz / positionCS.w;
 
 			position += positionCS.xyz;
 
-			color += ColorTexture.SampleLevel(LinearSampler, uv, 0).rgb;
+			if (SharedData::linearSettings.Linear)
+				color += (ColorTexture.SampleLevel(LinearSampler, uv, 0).rgb);
+			else
+				color += Color::GammaToLinear(ColorTexture.SampleLevel(LinearSampler, uv, 0).rgb);
 			weight++;
 		}
 
@@ -99,7 +103,7 @@ float smoothbumpstep(float edge0, float edge1, float x)
 			color /= weight;
 
 			float4 positionFinal = float4(position.xyz * 0.001, length(position) < (4096.0 * 2.5));
-			float4 colorFinal = float4(Color::GammaToLinear(color), 1.0);
+			float4 colorFinal = float4(color, 1.0);
 
 			float lerpFactor = 0.5;
 

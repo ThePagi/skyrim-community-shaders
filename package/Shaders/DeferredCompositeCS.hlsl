@@ -13,9 +13,15 @@ Texture2D<unorm float3> NormalRoughnessTexture : register(t2);
 Texture2D<unorm float3> MasksTexture : register(t3);
 Texture2D<unorm float3> Masks2Texture : register(t4);
 
+<<<<<<< HEAD
 RWTexture2D<float4> MainRW : register(u0);
 RWTexture2D<float4> NormalTAAMaskSpecularMaskRW : register(u1);
 RWTexture2D<float2> MotionVectorsRW : register(u2);
+=======
+RWTexture2D<float3> MainRW : register(u0);
+RWTexture2D<half4> NormalTAAMaskSpecularMaskRW : register(u1);
+RWTexture2D<half2> MotionVectorsRW : register(u2);
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 Texture2D<float> DepthTexture : register(t5);
 
 #if defined(DYNAMIC_CUBEMAPS)
@@ -79,6 +85,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 	float3 albedo = AlbedoTexture[dispatchID.xy];
 	float3 masks2 = Masks2Texture[dispatchID.xy];
 
+<<<<<<< HEAD
 	float depth = DepthTexture[dispatchID.xy];
 	float4 positionWS = float4(2 * float2(uv.x, -uv.y + 1) - 1, depth, 1);
 	positionWS = mul(FrameBuffer::CameraViewProjInverse[eyeIndex], positionWS);
@@ -90,12 +97,40 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 	float glossiness = normalGlossiness.z;
 
 	float3 color = diffuseColor + specularColor;
+=======
+	//MainRW[dispatchID.xy] = Color::LinearToGamma(specularColor);
+	//return;
+
+	half depth = DepthTexture[dispatchID.xy];
+	half4 positionWS = half4(2 * half2(uv.x, -uv.y + 1) - 1, depth, 1);
+	positionWS = mul(FrameBuffer::CameraViewProjInverse[eyeIndex], positionWS);
+	positionWS.xyz = positionWS.xyz / positionWS.w;
+
+	half pbrWeight = masks2.z;
+
+	half glossiness = normalGlossiness.z;
+
+	half3 color = diffuseColor + specularColor;
+
+	half3 normalWS = normalize(mul(FrameBuffer::CameraViewInverse[eyeIndex], half4(normalVS, 0)).xyz);
+
+	if (depth == 1.0) {
+		MotionVectorsRW[dispatchID.xy] = MotionBlur::GetSSMotionVector(positionWS, positionWS, eyeIndex);  // Apply sky motion vectors
+	}
+	//else
+	//{
+	//		color = saturate(dot(normalWS, SharedData::DirLightDirection)) * Color::Tint(SharedData::DirLightColor.rgb) * SharedData::DirLightColor.w * albedo;
+	//		float3 directionalAmbientColor = Color::Tint(mul(SharedData::DirectionalAmbient, float4(normalWS, 1.0)));
+	//		color += directionalAmbientColor * albedo;
+	//}
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 
 #if defined(DYNAMIC_CUBEMAPS)
 
 	float3 reflectance = ReflectanceTexture[dispatchID.xy];
 
 	if (reflectance.x > 0.0 || reflectance.y > 0.0 || reflectance.z > 0.0) {
+<<<<<<< HEAD
 		float3 normalWS = normalize(mul(FrameBuffer::CameraViewInverse[eyeIndex], float4(normalVS, 0)).xyz);
 
 		float wetnessMask = MasksTexture[dispatchID.xy].z;
@@ -104,6 +139,14 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 
 		float3 V = normalize(positionWS.xyz);
 		float3 R = reflect(V, normalWS);
+=======
+		half wetnessMask = MasksTexture[dispatchID.xy].z;
+
+		normalWS = lerp(normalWS, float3(0, 0, 1), wetnessMask);
+
+		if (!SharedData::linearSettings.Linear)
+			color = Color::GammaToLinear(color);
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 
 		float roughness = 1.0 - glossiness;
 		float level = roughness * 7.0;
@@ -113,7 +156,13 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 		float3 finalIrradiance = 0;
 
 #	if defined(INTERIOR)
+<<<<<<< HEAD
 		float3 specularIrradiance = Color::GammaToLinear(EnvTexture.SampleLevel(LinearSampler, R, level));
+=======
+		half3 specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
+		if (!SharedData::linearSettings.Linear)
+			specularIrradiance = Color::GammaToLinear(specularIrradiance);
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 
 		finalIrradiance += specularIrradiance;
 #	elif defined(SKYLIGHTING)
@@ -130,17 +179,38 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 
 		float3 specularIrradiance = 1;
 
+<<<<<<< HEAD
 		if (skylightingSpecular < 1.0)
 			specularIrradiance = Color::GammaToLinear(EnvTexture.SampleLevel(LinearSampler, R, level));
+=======
+		if (skylightingSpecular < 1.0) {
+			specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
+			if (!SharedData::linearSettings.Linear)
+				specularIrradiance = Color::GammaToLinear(specularIrradiance);
+		}
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 
 		float3 specularIrradianceReflections = 1.0;
 
+<<<<<<< HEAD
 		if (skylightingSpecular > 0.0)
 			specularIrradianceReflections = Color::GammaToLinear(EnvReflectionsTexture.SampleLevel(LinearSampler, R, level));
 
 		finalIrradiance = lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
 #	else
 		float3 specularIrradianceReflections = Color::GammaToLinear(EnvReflectionsTexture.SampleLevel(LinearSampler, R, level));
+=======
+		if (skylightingSpecular > 0.0) {
+			specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
+			if (!SharedData::linearSettings.Linear)
+				specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
+		}
+		finalIrradiance = finalIrradiance * skylightingSpecular + lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
+#	else
+		half3 specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
+		if (!SharedData::linearSettings.Linear)
+			specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 
 		finalIrradiance += specularIrradianceReflections;
 #	endif
@@ -170,7 +240,14 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 		finalIrradiance = finalIrradiance * ssgiAo + ssgiIlSpecular;
 #	endif
 
+<<<<<<< HEAD
 		color += reflectance * Color::LinearToGamma(finalIrradiance);
+=======
+		color += reflectance * finalIrradiance;
+
+		if (!SharedData::linearSettings.Linear)
+			color = Color::LinearToGamma(color);
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 	}
 
 #endif

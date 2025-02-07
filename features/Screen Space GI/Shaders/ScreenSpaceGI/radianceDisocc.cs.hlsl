@@ -142,7 +142,10 @@ void readHistory(
 
 	half3 radiance = 0;
 #ifdef GI
-	radiance = Color::GammaToLinear(FULLRES_LOAD(srcDiffuse, pixCoord, uv * frameScale, samplerLinearClamp).rgb * GIStrength);
+	if (SharedData::linearSettings.Linear)
+		radiance = FULLRES_LOAD(srcDiffuse, pixCoord, uv * frameScale, samplerLinearClamp).rgb * GIStrength;
+	else
+		radiance = Color::GammaToLinear(FULLRES_LOAD(srcDiffuse, pixCoord, uv * frameScale, samplerLinearClamp).rgb * GIStrength);
 #	ifdef GI_BOUNCE
 	radiance += prev_ambient.rgb * GIBounceFade;
 #	endif

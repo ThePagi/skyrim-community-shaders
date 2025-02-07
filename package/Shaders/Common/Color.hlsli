@@ -1,7 +1,7 @@
 #ifndef __COLOR_DEPENDENCY_HLSL__
 #define __COLOR_DEPENDENCY_HLSL__
-
 #include "Common/Math.hlsli"
+#include "Common/SharedData.hlsli"
 
 namespace Color
 {
@@ -41,9 +41,6 @@ namespace Color
 			tmp - color.y);
 	}
 
-	// attempt to match vanilla diffuse that's a bit darker than normal srgb textures
-	const static float AlbedoDiffusePower = 1 / 1.7;
-
 	float3 GammaToLinear(float3 color)
 	{
 		return pow(abs(color), 2.2);
@@ -54,23 +51,70 @@ namespace Color
 		return pow(abs(color), 1.0 / 2.2);
 	}
 
-	float3 Diffuse(float3 color)
-	{
-#if defined(TRUE_PBR)
-		return pow(abs(color), AlbedoDiffusePower);
-#else
-		return color;
-#endif
-	}
-
+#if defined(PSHADER) || defined(CSHADER) || defined(COMPUTESHADER)
 	float3 Light(float3 color)
 	{
-#if defined(TRUE_PBR)
-		return color * Math::PI;
-#else
-		return color;
-#endif
+		if (SharedData::linearSettings.Linear)
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+			return GammaToLinear(color) * Math::PI;
+#	else
+			return GammaToLinear(color);
+#	endif
+		else
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+			return color * Math::PI;
+#	else
+			return color;
+#	endif
 	}
+	float3 Diffuse(float3 color)
+	{
+		if (SharedData::linearSettings.Linear)
+#	if defined(TRUE_PBR)
+			return color;
+#	else
+			return pow(color, SharedData::linearSettings.ColorMatchingPow) * SharedData::linearSettings.ColorMatchingMult;
+#	endif
+		else
+#	if defined(TRUE_PBR) || (defined(SKIN) && defined(PBR_SKIN))
+			return pow(color / SharedData::linearSettings.ColorMatchingMult, 1. / SharedData::linearSettings.ColorMatchingPow);
+#	else
+			return color;
+#	endif
+	}
+	float3 Tint(float3 color)
+	{
+		if (SharedData::linearSettings.Linear)
+			return GammaToLinear(color);
+		else
+			return color;
+	}
+	float3 Ambient(float3 color)
+	{
+		if (SharedData::linearSettings.Linear)
+			return GammaToLinear(color);
+		else
+			return color;
+	}
+	float3 Output(float3 color)
+	{
+		return color;
+	}
+	float3 LLToGamma(float3 color)
+	{
+		if (SharedData::linearSettings.Linear)
+			return LinearToGamma(color);
+		else
+			return color;
+	}
+	float3 VanillaToPBR(float3 color)
+	{
+		if (SharedData::linearSettings.Linear)
+			return pow(color, SharedData::linearSettings.ColorMatchingPow) * SharedData::linearSettings.ColorMatchingMult;
+		else
+			return color;
+	}
+#endif
 }
 
 #endif  //__COLOR_DEPENDENCY_HLSL__
