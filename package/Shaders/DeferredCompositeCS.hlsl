@@ -156,8 +156,7 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 		float3 finalIrradiance = 0;
 
 #	if defined(INTERIOR)
-<<<<<<< HEAD
-		float3 specularIrradiance = Color::GammaToLinear(EnvTexture.SampleLevel(LinearSampler, R, level));
+		<<<<<<< HEAD float3 specularIrradiance = Color::GammaToLinear(EnvTexture.SampleLevel(LinearSampler, R, level));
 =======
 		half3 specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
 		if (!SharedData::linearSettings.Linear)
@@ -165,83 +164,82 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il)
 >>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
 
 		finalIrradiance += specularIrradiance;
-#	elif defined(SKYLIGHTING)
-#		if defined(VR)
-		float3 positionMS = positionWS.xyz + FrameBuffer::CameraPosAdjust[eyeIndex].xyz - FrameBuffer::CameraPosAdjust[0].xyz;
-#		else
-		float3 positionMS = positionWS.xyz;
-#		endif
-
-		sh2 skylighting = Skylighting::sample(SharedData::skylightingSettings, SkylightingProbeArray, stbn_vec3_2Dx1D_128x128x64, dispatchID.xy, positionMS.xyz, normalWS);
-
-		float skylightingSpecular = SphericalHarmonics::FuncProductIntegral(skylighting, specularLobe);
-		skylightingSpecular = Skylighting::mixSpecular(SharedData::skylightingSettings, skylightingSpecular);
-
-		float3 specularIrradiance = 1;
-
-<<<<<<< HEAD
-		if (skylightingSpecular < 1.0)
-			specularIrradiance = Color::GammaToLinear(EnvTexture.SampleLevel(LinearSampler, R, level));
-=======
-		if (skylightingSpecular < 1.0) {
-			specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
-			if (!SharedData::linearSettings.Linear)
-				specularIrradiance = Color::GammaToLinear(specularIrradiance);
-		}
->>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
-
-		float3 specularIrradianceReflections = 1.0;
-
-<<<<<<< HEAD
-		if (skylightingSpecular > 0.0)
-			specularIrradianceReflections = Color::GammaToLinear(EnvReflectionsTexture.SampleLevel(LinearSampler, R, level));
-
-		finalIrradiance = lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
+#elif defined(SKYLIGHTING)
+#	if defined(VR)
+	float3 positionMS = positionWS.xyz + FrameBuffer::CameraPosAdjust[eyeIndex].xyz - FrameBuffer::CameraPosAdjust[0].xyz;
 #	else
-		float3 specularIrradianceReflections = Color::GammaToLinear(EnvReflectionsTexture.SampleLevel(LinearSampler, R, level));
-=======
-		if (skylightingSpecular > 0.0) {
-			specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
-			if (!SharedData::linearSettings.Linear)
-				specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
-		}
-		finalIrradiance = finalIrradiance * skylightingSpecular + lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
-#	else
-		half3 specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
-		if (!SharedData::linearSettings.Linear)
-			specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
->>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
-
-		finalIrradiance += specularIrradianceReflections;
+	float3 positionMS = positionWS.xyz;
 #	endif
 
-#	if defined(SSGI)
-#		if defined(VR)
+	sh2 skylighting = Skylighting::sample(SharedData::skylightingSettings, SkylightingProbeArray, stbn_vec3_2Dx1D_128x128x64, dispatchID.xy, positionMS.xyz, normalWS);
+
+	float skylightingSpecular = SphericalHarmonics::FuncProductIntegral(skylighting, specularLobe);
+	skylightingSpecular = Skylighting::mixSpecular(SharedData::skylightingSettings, skylightingSpecular);
+
+	float3 specularIrradiance = 1;
+
+<<<<<<< HEAD
+	if (skylightingSpecular < 1.0)
+		specularIrradiance = Color::GammaToLinear(EnvTexture.SampleLevel(LinearSampler, R, level));
+=======
+	if (skylightingSpecular < 1.0) {
+		specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
+		if (!SharedData::linearSettings.Linear)
+			specularIrradiance = Color::GammaToLinear(specularIrradiance);
+	}
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
+
+	float3 specularIrradianceReflections = 1.0;
+
+<<<<<<< HEAD
+	if (skylightingSpecular > 0.0)
+		specularIrradianceReflections = Color::GammaToLinear(EnvReflectionsTexture.SampleLevel(LinearSampler, R, level));
+
+	finalIrradiance = lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
+#	else
+	float3 specularIrradianceReflections = Color::GammaToLinear(EnvReflectionsTexture.SampleLevel(LinearSampler, R, level));
+=======
+	if (skylightingSpecular > 0.0) {
+		specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
+		if (!SharedData::linearSettings.Linear)
+			specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
+	}
+	finalIrradiance = finalIrradiance * skylightingSpecular + lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
+#	else
+	half3 specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
+	if (!SharedData::linearSettings.Linear)
+		specularIrradianceReflections = Color::GammaToLinear(specularIrradianceReflections);
+>>>>>>> 63279b9366ae64082f5f016c367c695d12a68da4
+
+	finalIrradiance += specularIrradianceReflections;
+#endif
+
+#if defined(SSGI)
+#	if defined(VR)
 		float3 uvF = float3((dispatchID.xy + 0.5) * SharedData::BufferDim.zw, DepthTexture[dispatchID.xy]);  // calculate high precision uv of initial eye
 		float3 uv2 = Stereo::ConvertStereoUVToOtherEyeStereoUV(uvF, eyeIndex, false);                        // calculate other eye uv
 		float3 uv1Mono = Stereo::ConvertFromStereoUV(uvF, eyeIndex);
 		float3 uv2Mono = Stereo::ConvertFromStereoUV(uv2, (1 - eyeIndex));
 		uint2 pixCoord2 = (uint2)(uv2.xy / SharedData::BufferDim.zw - 0.5);
-#		endif
+#	endif
 
 		float ssgiAo;
 		float3 ssgiIlSpecular;
 		SampleSSGISpecular(dispatchID.xy, specularLobe, ssgiAo, ssgiIlSpecular);
 
-#		if defined(VR)
+#	if defined(VR)
 		float ssgiAo2;
 		float3 ssgiIlSpecular2;
 		SampleSSGISpecular(pixCoord2, specularLobe, ssgiAo2, ssgiIlSpecular2);
 		float4 ssgiMixed = Stereo::BlendEyeColors(uv1Mono, float4(ssgiIlSpecular, ssgiAo), uv2Mono, float4(ssgiIlSpecular2, ssgiAo2));
 		ssgiAo = ssgiMixed.a;
 		ssgiIlSpecular = ssgiMixed.rgb;
-#		endif
-
-		finalIrradiance = finalIrradiance * ssgiAo + ssgiIlSpecular;
 #	endif
 
-<<<<<<< HEAD
-		color += reflectance * Color::LinearToGamma(finalIrradiance);
+		finalIrradiance = finalIrradiance * ssgiAo + ssgiIlSpecular;
+#endif
+
+		<<<<<<< HEAD color += reflectance * Color::LinearToGamma(finalIrradiance);
 =======
 		color += reflectance * finalIrradiance;
 

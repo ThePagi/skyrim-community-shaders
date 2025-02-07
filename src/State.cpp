@@ -670,7 +670,6 @@ void State::UpdateSharedData(bool a_inWorld)
 		auto imageSpaceManager = RE::ImageSpaceManager::GetSingleton();
 		data.DirLightColor.w = !globals::game::isVR ? imageSpaceManager->GetRuntimeData().data.baseData.hdr.sunlightScale : imageSpaceManager->GetVRRuntimeData().data.baseData.hdr.sunlightScale;
 
-
 		const auto& direction = dirLight->GetWorldDirection();
 		data.DirLightDirection = { -direction.x, -direction.y, -direction.z, 0.0f };
 		data.DirLightDirection.Normalize();

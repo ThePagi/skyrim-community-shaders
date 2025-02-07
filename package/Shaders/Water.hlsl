@@ -561,9 +561,9 @@ float3 GetWaterSpecularColor(PS_INPUT input, float3 normal, float3 viewDirection
 				float3 specularIrradiance = 1;
 
 				if (skylightingSpecular < 1.0) {
-				specularIrradiance = DynamicCubemaps::EnvTexture.SampleLevel(CubeMapSampler, R, 0).xyz;
-				if (!SharedData::linearSettings.Linear)
-					specularIrradiance = Color::GammaToLinear(specularIrradiance);
+					specularIrradiance = DynamicCubemaps::EnvTexture.SampleLevel(CubeMapSampler, R, 0).xyz;
+					if (!SharedData::linearSettings.Linear)
+						specularIrradiance = Color::GammaToLinear(specularIrradiance);
 				}
 
 				float3 specularIrradianceReflections = 1.0;

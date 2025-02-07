@@ -17,7 +17,6 @@
 #include "Features/VolumetricLighting.h"
 #include "Features/WaterEffects.h"
 #include "Features/WetnessEffects.h"
-#include "Features/LinearLighting.h"
 
 #include "State.h"
 
