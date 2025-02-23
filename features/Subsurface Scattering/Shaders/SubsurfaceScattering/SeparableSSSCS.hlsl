@@ -14,15 +14,16 @@ cbuffer PerFrameSSS : register(b1)
 	float SSSS_FOVY;
 };
 
-#include "Common/Color.hlsli"
-#include "Common/Random.hlsli"
-#include "Common/SharedData.hlsli"
+#include "../Common/Color.hlsli"
+#include "../Common/Constants.hlsli"
+#include "../Common/DeferredShared.hlsli"
+#include "../Common/Random.hlsli"
 
-#include "SubsurfaceScattering/SeparableSSS.hlsli"
+#include "SeparableSSS.hlsli"
 
 [numthreads(8, 8, 1)] void main(uint3 DTid
 								: SV_DispatchThreadID) {
-	float2 texCoord = (DTid.xy + 0.5) * SharedData::BufferDim.zw;
+	float2 texCoord = (DTid.xy + 0.5) * BufferDim.zw;
 
 #if defined(HORIZONTAL)
 
@@ -38,7 +39,7 @@ cbuffer PerFrameSSS : register(b1)
 	bool humanProfile = MaskTexture[DTid.xy].y == sssAmount;
 
 	float4 color = SSSSBlurCS(DTid.xy, texCoord, float2(0.0, 1.0), sssAmount, humanProfile);
-	color.rgb = Color::LinearToGamma(color.rgb);
+	color.rgb = LinearToGamma(color.rgb);
 	SSSRW[DTid.xy] = float4(color.rgb, 1.0);
 
 #endif

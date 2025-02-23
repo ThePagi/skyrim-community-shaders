@@ -1,8 +1,5 @@
 #include "Common/DummyVSTexCoord.hlsl"
 #include "Common/FrameBuffer.hlsli"
-#include "Common/MotionBlur.hlsli"
-#include "Common/SharedData.hlsli"
-#include "Common/VR.hlsli"
 
 typedef VS_OUTPUT PS_INPUT;
 
@@ -28,109 +25,27 @@ cbuffer PerGeometry : register(b2)
 	float3 DefaultNormal : packoffset(c1);
 };
 
-static const int iterations = 64.0;
-static const int binaryIterations = ceil(log2(iterations));
-
-static const float rayLength = 1.0;
-
-float2 ConvertRaySample(float2 raySample, uint eyeIndex)
+float3 DecodeNormal(float2 encodedNormal)
 {
-	return FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(Stereo::ConvertToStereoUV(raySample, eyeIndex));
+	float2 fenc = 4 * encodedNormal - 2;
+	float f = dot(fenc, fenc);
+
+	float3 decodedNormal;
+	decodedNormal.xy = fenc * sqrt(1 - f / 4);
+	decodedNormal.z = -(1 - f / 2);
+
+	return normalize(decodedNormal);
 }
 
-float2 ConvertRaySamplePrevious(float2 raySample, uint eyeIndex)
+float3 UVDepthToView(float3 uv)
 {
-	return FrameBuffer::GetPreviousDynamicResolutionAdjustedScreenPosition(Stereo::ConvertToStereoUV(raySample, eyeIndex));
+	//return float3(2 * uv.x - 1, 1 - 2 * uv.y, uv.z);
+	return uv * float3(2, -2, 1) + float3(-1, 1, 0);
 }
 
-float4 GetReflectionColor(
-	float3 projReflectionDirection,
-	float3 projPosition,
-	uint eyeIndex)
+float3 ViewToUVDepth(float3 view)
 {
-	float3 prevRaySample;
-	float3 raySample = projPosition;
-
-	for (int i = 0; i < iterations; i++) {
-		prevRaySample = raySample;
-		raySample = projPosition + (float(i) / float(iterations)) * projReflectionDirection;
-
-		if (FrameBuffer::IsOutsideFrame(raySample.xy))
-			return 0.0;
-
-		float iterationDepth = DepthTex.SampleLevel(DepthSampler, ConvertRaySample(raySample.xy, eyeIndex), 0);
-
-		if (saturate((raySample.z - iterationDepth) / SSRParams.y) > 0.0) {
-			float3 binaryMinRaySample = prevRaySample;
-			float3 binaryMaxRaySample = raySample;
-			float3 binaryRaySample = raySample;
-			float depthThicknessFactor;
-
-			for (int k = 0; k < binaryIterations; k++) {
-				binaryRaySample = lerp(binaryMinRaySample, binaryMaxRaySample, 0.5);
-
-				iterationDepth = DepthTex.SampleLevel(DepthSampler, ConvertRaySample(binaryRaySample.xy, eyeIndex), 0);
-
-				// Compute expected depth vs actual depth
-				depthThicknessFactor = 1.0 - saturate(abs(binaryRaySample.z - iterationDepth) / SSRParams.y);
-
-				if (iterationDepth < binaryRaySample.z)
-					binaryMaxRaySample = binaryRaySample;
-				else
-					binaryMinRaySample = binaryRaySample;
-			}
-
-			// Fade based on ray length
-			float ssrMarchingRadiusFadeFactor = 1.0 - saturate(length(binaryRaySample - projPosition) / rayLength);
-
-			float2 uvResultScreenCenterOffset = binaryRaySample.xy - 0.5;
-
-#	ifdef VR
-			float2 centerDistance = abs(uvResultScreenCenterOffset.xy * 2.0);
-
-			// Make VR fades consistent by taking the closer of the two eyes
-			// Based on concepts from https://cuteloong.github.io/publications/scssr24/
-			float2 otherEyeUvResultScreenCenterOffset = Stereo::ConvertMonoUVToOtherEye(float3(binaryRaySample.xy, iterationDepth), eyeIndex).xy - 0.5;
-			centerDistance = min(centerDistance, abs(otherEyeUvResultScreenCenterOffset * 2.0));
-#	else
-			float2 centerDistance = abs(uvResultScreenCenterOffset.xy * 2.0);
-#	endif
-
-			// Fade out around screen edges
-			float2 centerDistanceFadeFactorX = smoothstep(0.0, 0.1, saturate(1.0 - centerDistance.x));
-			float2 centerDistanceFadeFactorY = smoothstep(0.0, 0.5, saturate(1.0 - centerDistance.y));
-
-			float fadeFactor = depthThicknessFactor * ssrMarchingRadiusFadeFactor * centerDistanceFadeFactorX * centerDistanceFadeFactorY;
-
-			if (fadeFactor > 0.0) {
-				float3 color = ColorTex.SampleLevel(ColorSampler, ConvertRaySample(binaryRaySample.xy, eyeIndex), 0);
-
-				// Final sample to world-space
-				float4 positionWS = float4(float2(binaryRaySample.x, 1.0 - binaryRaySample.y) * 2.0 - 1.0, iterationDepth, 1.0);
-				positionWS = mul(FrameBuffer::CameraViewProjInverse[eyeIndex], positionWS);
-				positionWS.xyz = positionWS.xyz / positionWS.w;
-				positionWS.w = 1.0;
-
-				// Compute camera motion vector
-				float2 cameraMotionVector = MotionBlur::GetSSMotionVector(positionWS, positionWS, eyeIndex);
-
-				// Reproject alpha from previous frame
-				float2 reprojectedRaySample = binaryRaySample.xy + cameraMotionVector;
-				float4 alpha = 0.0;
-
-				// Check that the reprojected data is within the frame
-				if (!FrameBuffer::IsOutsideFrame(reprojectedRaySample.xy))
-					alpha = float4(AlphaTex.SampleLevel(AlphaSampler, ConvertRaySamplePrevious(reprojectedRaySample.xy, eyeIndex), 0).xyz, 1.0);
-
-				float3 reflectionColor = color + SSRParams.z * alpha.xyz * alpha.w;
-				return float4(reflectionColor, fadeFactor);
-			}
-
-			return 0.0;
-		}
-	}
-
-	return 0.0;
+	return float3(0.5 * view.x + 0.5, 0.5 - 0.5 * view.y, view.z);
 }
 
 PS_OUTPUT main(PS_INPUT input)
@@ -138,49 +53,121 @@ PS_OUTPUT main(PS_INPUT input)
 	PS_OUTPUT psout;
 	psout.Color = 0;
 
-#	ifndef ENABLESSR
-	// Disable SSR raymarch
-	return psout;
+	float2 uvStart = input.TexCoord;
+	float2 uvStartDR = GetDynamicResolutionAdjustedScreenPosition(uvStart);
+
+	float4 srcNormal = NormalTex.Sample(NormalSampler, uvStartDR);
+
+	float depthStart = DepthTex.SampleLevel(DepthSampler, uvStartDR, 0).x;
+
+	bool isDefaultNormal = srcNormal.z >= 1e-5;
+	float ssrPower = max(srcNormal.z >= 1e-5, srcNormal.w);
+	bool isSsrDisabled = ssrPower < 1e-5;
+
+#	if defined(SPECMASK)
+	float3 color = ColorTex.Sample(ColorSampler, uvStartDR).xyz;
+
+	if (isSsrDisabled) {
+		psout.Color.rgb = float3(0.5 * color.r, 0, 0);
+	} else {
+		psout.Color.rgb = color * (1 - float3(ssrPower, 0.5 * ssrPower, ssrPower));
+	}
+	psout.Color.a = 1;
+#	else
+	float3 decodedNormal = DecodeNormal(srcNormal.xy);
+	float4 normal = float4(lerp(decodedNormal, DefaultNormal, isDefaultNormal), 0);
+
+	float3 uvDepthStart = float3(uvStart, depthStart);
+	float3 vsStart = UVDepthToView(uvDepthStart);
+
+	float4 csStart = mul(CameraProjInverse[0], float4(vsStart, 1));
+	csStart /= csStart.w;
+	float4 viewDirection = float4(normalize(-csStart.xyz), 0);
+	float4 reflectedDirection = reflect(-viewDirection, normal);
+	float4 csFinish = csStart + reflectedDirection;
+	float4 vsFinish = mul(CameraProj[0], csFinish);
+	vsFinish.xyz /= vsFinish.w;
+
+	float3 uvDepthFinish = ViewToUVDepth(vsFinish.xyz);
+	float3 deltaUvDepth = uvDepthFinish - uvDepthStart;
+
+	float3 uvDepthFinishDR = uvDepthStart + deltaUvDepth * (SSRParams.x * rcp(length(deltaUvDepth.xy)));
+	uvDepthFinishDR.xy = GetDynamicResolutionAdjustedScreenPosition(uvDepthFinishDR.xy);
+
+	float3 uvDepthStartDR = float3(uvStartDR, vsStart.z);
+	float3 deltaUvDepthDR = uvDepthFinishDR - uvDepthStartDR;
+
+	float3 uvDepthPreResultDR = uvDepthStartDR;
+	float3 uvDepthResultDR = float3(uvDepthStartDR.xy, depthStart);
+
+	float iterationIndex = 1;
+	for (; iterationIndex < 16; iterationIndex += 1) {
+		float3 iterationUvDepthDR = uvDepthStartDR + (iterationIndex / 16) * deltaUvDepthDR;
+		float iterationDepth = DepthTex.SampleLevel(DepthSampler, iterationUvDepthDR.xy, 0).x;
+		uvDepthPreResultDR = uvDepthResultDR;
+		uvDepthResultDR = iterationUvDepthDR;
+		if (iterationDepth < iterationUvDepthDR.z) {
+			break;
+		}
+	}
+
+	float3 uvDepthFinalDR = uvDepthResultDR;
+
+	if (iterationIndex < 16) {
+		iterationIndex = 0;
+		uvDepthFinalDR = uvDepthPreResultDR;
+		[unroll] for (; iterationIndex < 16; iterationIndex += 1)
+		{
+			uvDepthFinalDR = lerp(uvDepthPreResultDR, uvDepthResultDR, iterationIndex / 16);
+			float subIterationDepth = DepthTex.SampleLevel(DepthSampler, uvDepthFinalDR.xy, 0).x;
+			if (subIterationDepth < uvDepthFinalDR.z && uvDepthFinalDR.z < subIterationDepth + SSRParams.y) {
+				break;
+			}
+		}
+	}
+
+	float2 uvFinal = GetDynamicResolutionUnadjustedScreenPosition(uvDepthFinalDR.xy);
+
+	float2 previousUvFinalDR = GetPreviousDynamicResolutionAdjustedScreenPosition(uvFinal);
+	float3 alpha = AlphaTex.Sample(AlphaSampler, previousUvFinalDR).xyz;
+
+	float2 uvFinalDR = GetDynamicResolutionAdjustedScreenPosition(uvFinal);
+	float3 color = ColorTex.Sample(ColorSampler, uvFinalDR).xyz;
+
+	float3 ssrColor = SSRParams.z * alpha + color;
+
+	[branch] if (isSsrDisabled)
+	{
+		return psout;
+	}
+
+	float VdotN = dot(viewDirection, reflectedDirection);
+	[branch] if (reflectedDirection.z < 0 || 0 < VdotN)
+	{
+		return psout;
+	}
+
+	[branch] if (0 < deltaUvDepth.y || deltaUvDepth.z < 0)
+	{
+		return psout;
+	}
+
+	[branch] if (iterationIndex == 16)
+	{
+		return psout;
+	}
+
+	psout.Color.rgb = ssrColor;
+
+	float2 deltaUv = uvFinal - uvStart;
+	float ssrMarchingRadiusFadeFactor = 1 - length(deltaUv) * SSRParams.w;
+
+	float2 uvResultScreenCenterOffset = uvFinal - 0.5;
+	float centerDistance = min(1, 2 * length(uvResultScreenCenterOffset));
+	float centerDistanceFadeFactor = 1 - centerDistance * centerDistance;
+
+	psout.Color.a = ssrPower * ssrMarchingRadiusFadeFactor * centerDistanceFadeFactor;
 #	endif
-
-	uint eyeIndex = Stereo::GetEyeIndexFromTexCoord(input.TexCoord);
-	float2 uv = input.TexCoord;
-	float2 screenPosition = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(uv);
-
-	uv = Stereo::ConvertFromStereoUV(uv, eyeIndex);
-
-	[branch] if (NormalTex.Sample(NormalSampler, screenPosition).z <= 0)
-	{
-		return psout;
-	}
-
-	float3 viewNormal = DefaultNormal;
-
-	float depth = DepthTex.SampleLevel(DepthSampler, screenPosition, 0).x;
-
-	float4 positionVS = float4(float2(uv.x, 1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);
-	positionVS = mul(FrameBuffer::CameraProjInverse[eyeIndex], positionVS);
-	positionVS.xyz = positionVS.xyz / positionVS.w;
-
-	float3 viewPosition = positionVS;
-	float3 viewDirection = normalize(viewPosition);
-
-	float3 reflectionDirection = reflect(viewDirection, viewNormal);
-	float viewAttenuation = saturate(dot(viewDirection, reflectionDirection));
-	[branch] if (viewAttenuation < 0)
-	{
-		return psout;
-	}
-
-	float4 reflectionPosition = float4(viewPosition + reflectionDirection, 1.0);
-	float4 projReflectionPosition = mul(FrameBuffer::CameraProj[eyeIndex], reflectionPosition);
-	projReflectionPosition /= projReflectionPosition.w;
-	projReflectionPosition.xy = projReflectionPosition.xy * float2(0.5, -0.5) + float2(0.5, 0.5);
-
-	float3 projPosition = float3(uv, depth);
-	float3 projReflectionDirection = normalize(projReflectionPosition.xyz - projPosition) * rayLength;
-
-	psout.Color = GetReflectionColor(projReflectionDirection, projPosition, eyeIndex);
 
 	return psout;
 }

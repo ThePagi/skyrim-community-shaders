@@ -1,11 +1,11 @@
 #include "FeatureBuffer.h"
 
-#include "Features/CloudShadows.h"
 #include "Features/DynamicCubemaps.h"
 #include "Features/ExtendedMaterials.h"
 #include "Features/GrassLighting.h"
 #include "Features/LightLimitFix.h"
 #include "Features/Skylighting.h"
+#include "Features/SnowCover.h"
 #include "Features/TerrainShadows.h"
 #include "Features/WetnessEffects.h"
 
@@ -27,15 +27,16 @@ std::pair<unsigned char*, size_t> _GetFeatureBufferData(Ts... feat_datas)
 	return std::make_pair(data, totalSize);
 }
 
-std::pair<unsigned char*, size_t> GetFeatureBufferData(bool a_inWorld)
+std::pair<unsigned char*, size_t> GetFeatureBufferData()
 {
 	return _GetFeatureBufferData(
-		globals::features::grassLighting->settings,
-		globals::features::extendedMaterials->settings,
-		globals::features::dynamicCubemaps->settings,
-		globals::features::terrainShadows->GetCommonBufferData(),
-		globals::features::lightLimitFix->GetCommonBufferData(),
-		globals::features::wetnessEffects->GetCommonBufferData(),
-		globals::features::skylighting->GetCommonBufferData(a_inWorld),
-		globals::features::cloudShadows->settings);
+		SnowCover::GetSingleton()->GetCommonBufferData(),
+		GrassLighting::GetSingleton()->settings,
+		ExtendedMaterials::GetSingleton()->settings,
+		DynamicCubemaps::GetSingleton()->settings,
+		TerrainShadows::GetSingleton()->GetCommonBufferData(),
+		WetnessEffects::GetSingleton()->GetCommonBufferData(),
+		LightLimitFix::GetSingleton()->GetCommonBufferData(),
+		Skylighting::GetSingleton()->cbData,
+		TruePBR::GetSingleton()->settings);
 }

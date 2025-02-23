@@ -1,3 +1,4 @@
+#include "Common/Constants.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
 
@@ -77,7 +78,7 @@ VS_OUTPUT main(VS_INPUT input)
 {
 	VS_OUTPUT vsout;
 
-	uint eyeIndex = Stereo::GetEyeIndexVS(
+	uint eyeIndex = GetEyeIndexVS(
 #	if defined(VR)
 		input.InstanceID
 #	endif
@@ -195,7 +196,7 @@ VS_OUTPUT main(VS_INPUT input)
 
 #	ifdef VR
 	vsout.EyeIndex = eyeIndex;
-	Stereo::VR_OUTPUT VRout = Stereo::GetVRVSOutput(vsout.Position, eyeIndex);
+	VR_OUTPUT VRout = GetVRVSOutput(vsout.Position, eyeIndex);
 	vsout.Position = VRout.VRPosition;
 	vsout.ClipDistance.x = VRout.ClipDistance;
 	vsout.CullDistance.x = VRout.CullDistance;
@@ -248,11 +249,11 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif  // !VR
 
 #	if defined(ENVCUBE)
-	float2 precipitationOcclusionUV = (input.PrecipitationOcclusionTexCoord.xy * 0.5 + 0.5) * TextureSize.x;
+	float2 precipitationOcclusionUv = (input.PrecipitationOcclusionTexCoord.xy * 0.5 + 0.5) * TextureSize.x;
 #		ifdef VR
-	precipitationOcclusionUV *= FrameBuffer::DynamicResolutionParams1.x;  // only difference in VR
+	precipitationOcclusionUv *= DynamicResolutionParams1.x;  // only difference in VR
 #		endif
-	float precipitationOcclusion = -input.PrecipitationOcclusionTexCoord.z + TexPrecipitationOcclusionTexture.Load(float3(precipitationOcclusionUV, 0)).x;
+	float precipitationOcclusion = -input.PrecipitationOcclusionTexCoord.z + TexPrecipitationOcclusionTexture.SampleLevel(SampSourceTexture, precipitationOcclusionUv, 0).x;
 	float2 underwaterMaskUv = TextureSize.yz * input.Position.xy;
 	float underwaterMask = TexUnderwaterMask.Sample(SampUnderwaterMask, underwaterMaskUv).x;
 	if (precipitationOcclusion - underwaterMask < 0) {
@@ -276,7 +277,11 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color.xyz = ColorScale * baseColor.xyz;
 	psout.Color.w = baseColor.w;
 	psout.Normal.w = baseColor.w;
+#	if defined(ENVCUBE)
 	psout.Normal.xyz = float3(0, 1, 0);
+#	else
+	psout.Normal.xyz = float3(1, 0, 0);
+#	endif
 
 	return psout;
 }

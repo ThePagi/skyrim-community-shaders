@@ -1,42 +1,14 @@
 #include "TruePBR.h"
 
+#include <detours/Detours.h>
+
 #include "TruePBR/BSLightingShaderMaterialPBR.h"
 #include "TruePBR/BSLightingShaderMaterialPBRLandscape.h"
 
 #include "Hooks.h"
 #include "ShaderCache.h"
 #include "State.h"
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-	GlintParameters,
-	enabled,
-	screenSpaceScale,
-	logMicrofacetDensity,
-	microfacetRoughness,
-	densityRandomization);
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-	TruePBR::PBRTextureSetData,
-	roughnessScale,
-	displacementScale,
-	specularLevel,
-	subsurfaceColor,
-	subsurfaceOpacity,
-	coatColor,
-	coatStrength,
-	coatRoughness,
-	coatSpecularLevel,
-	innerLayerDisplacementOffset,
-	fuzzColor,
-	fuzzWeight,
-	glintParameters);
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-	TruePBR::PBRMaterialObjectData,
-	baseColorScale,
-	roughness,
-	specularLevel,
-	glintParameters);
+#include "Util.h"
 
 namespace PNState
 {
@@ -94,11 +66,32 @@ namespace PNState
 	}
 }
 
+namespace nlohmann
+{
+	void to_json(json& section, const RE::NiColor& result)
+	{
+		section = { result[0],
+			result[1],
+			result[2] };
+	}
+
+	void from_json(const json& section, RE::NiColor& result)
+	{
+		if (section.is_array() && section.size() == 3 &&
+			section[0].is_number_float() && section[1].is_number_float() &&
+			section[2].is_number_float()) {
+			result[0] = section[0];
+			result[1] = section[1];
+			result[2] = section[2];
+		}
+	}
+}
+
 void SetupPBRLandscapeTextureParameters(BSLightingShaderMaterialPBRLandscape& material, const TruePBR::PBRTextureSetData& textureSetData, uint32_t textureIndex);
 
 void TruePBR::DrawSettings()
 {
-	if (ImGui::CollapsingHeader("PBR", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick)) {
+	if (ImGui::TreeNodeEx("PBR", ImGuiTreeNodeFlags_DefaultOpen)) {
 		if (ImGui::TreeNodeEx("Texture Set Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 			if (ImGui::BeginCombo("Texture Set", selectedPbrTextureSetName.c_str())) {
 				for (auto& [textureSetName, textureSet] : pbrTextureSets) {
@@ -249,6 +242,17 @@ void TruePBR::DrawSettings()
 			}
 			ImGui::TreePop();
 		}
+
+		bool useMultipleScattering = settings.useMultipleScattering;
+		bool useMultiBounceAO = settings.useMultiBounceAO;
+		if (ImGui::Checkbox("Use Multiple Scattering", &useMultipleScattering)) {
+			settings.useMultipleScattering = useMultipleScattering;
+		}
+		if (ImGui::Checkbox("Use Multi-bounce AO", &useMultiBounceAO)) {
+			settings.useMultiBounceAO = useMultiBounceAO;
+		}
+
+		ImGui::TreePop();
 	}
 }
 
@@ -258,18 +262,34 @@ void TruePBR::SetupResources()
 	SetupMaterialObjectData();
 }
 
+void TruePBR::LoadSettings(json& o_json)
+{
+	if (o_json["Use Multiple Scattering"].is_boolean()) {
+		settings.useMultipleScattering = o_json["Use Multiple Scattering"];
+	}
+	if (o_json["Use Multi-bounce AO"].is_boolean()) {
+		settings.useMultiBounceAO = o_json["Use Multi-bounce AO"];
+	}
+}
+
+void TruePBR::SaveSettings(json& o_json)
+{
+	o_json["Use Multiple Scattering"] = (bool)settings.useMultipleScattering;
+	o_json["Use Multi-bounce AO"] = (bool)settings.useMultiBounceAO;
+}
+
 void TruePBR::PrePass()
 {
-	auto context = globals::d3d::context;
+	auto context = State::GetSingleton()->context;
 	if (!glintsNoiseTexture)
 		SetupGlintsTexture();
 	ID3D11ShaderResourceView* srv = glintsNoiseTexture->srv.get();
-	context->PSSetShaderResources(20, 1, &srv);
+	context->PSSetShaderResources(28, 1, &srv);
 }
 
 void TruePBR::SetupGlintsTexture()
 {
-	constexpr uint noiseTexSize = 128;
+	constexpr uint noiseTexSize = 512;
 
 	D3D11_TEXTURE2D_DESC tex_desc{
 		.Width = noiseTexSize,
@@ -309,7 +329,7 @@ void TruePBR::SetupGlintsTexture()
 
 	// Generate the noise
 	{
-		auto context = globals::d3d::context;
+		auto context = State::GetSingleton()->context;
 
 		struct OldState
 		{
@@ -339,7 +359,6 @@ void TruePBR::SetupGlintsTexture()
 
 void TruePBR::SetupFrame()
 {
-	SetupDefaultPBRLandTextureSet();
 }
 
 void TruePBR::SetupTextureSetData()
@@ -464,15 +483,40 @@ namespace Permutations
 		}
 	}
 
+	std::unordered_set<uint32_t> GeneratePBRLightingVertexPermutations()
+	{
+		using enum SIE::ShaderCache::LightingShaderFlags;
+
+		constexpr std::array defaultFlags{ VC, Skinned, WorldMap };
+		constexpr std::array projectedUvFlags{ VC, WorldMap };
+		constexpr std::array treeFlags{ VC, Skinned };
+		constexpr std::array landFlags{ VC };
+
+		constexpr uint32_t defaultConstantFlags = static_cast<uint32_t>(TruePbr);
+		constexpr uint32_t projectedUvConstantFlags = static_cast<uint32_t>(TruePbr) | static_cast<uint32_t>(ProjectedUV);
+
+		const std::unordered_set<uint32_t> defaultFlagValues = GenerateFlagPermutations(defaultFlags, defaultConstantFlags);
+		const std::unordered_set<uint32_t> projectedUvFlagValues = GenerateFlagPermutations(projectedUvFlags, projectedUvConstantFlags);
+		const std::unordered_set<uint32_t> treeFlagValues = GenerateFlagPermutations(treeFlags, defaultConstantFlags);
+		const std::unordered_set<uint32_t> landFlagValues = GenerateFlagPermutations(landFlags, defaultConstantFlags);
+
+		std::unordered_set<uint32_t> result;
+		AddLightingShaderDescriptors(SIE::ShaderCache::LightingShaderTechniques::None, defaultFlagValues, result);
+		AddLightingShaderDescriptors(SIE::ShaderCache::LightingShaderTechniques::None, projectedUvFlagValues, result);
+		AddLightingShaderDescriptors(SIE::ShaderCache::LightingShaderTechniques::TreeAnim, treeFlagValues, result);
+		AddLightingShaderDescriptors(SIE::ShaderCache::LightingShaderTechniques::MTLand, landFlagValues, result);
+		AddLightingShaderDescriptors(SIE::ShaderCache::LightingShaderTechniques::MTLandLODBlend, landFlagValues, result);
+		return result;
+	}
+
 	std::unordered_set<uint32_t> GeneratePBRLightingPixelPermutations()
 	{
 		using enum SIE::ShaderCache::LightingShaderFlags;
 
-		constexpr std::array defaultFlags{ Deferred, AnisoLighting, Skinned, DoAlphaTest };
-		constexpr std::array projectedUvFlags{ Deferred, AnisoLighting, DoAlphaTest, Snow };
-		constexpr std::array lodObjectsFlags{ Deferred, WorldMap, DoAlphaTest, ProjectedUV };
-		constexpr std::array treeFlags{ Deferred, AnisoLighting, Skinned, DoAlphaTest };
-		constexpr std::array landFlags{ Deferred, AnisoLighting };
+		constexpr std::array defaultFlags{ Skinned, DoAlphaTest, AdditionalAlphaMask };
+		constexpr std::array projectedUvFlags{ DoAlphaTest, AdditionalAlphaMask, Snow, BaseObjectIsSnow };
+		constexpr std::array lodObjectsFlags{ WorldMap, DoAlphaTest, AdditionalAlphaMask, ProjectedUV };
+		constexpr std::array treeFlags{ Skinned, DoAlphaTest, AdditionalAlphaMask };
 
 		constexpr uint32_t defaultConstantFlags = static_cast<uint32_t>(TruePbr) | static_cast<uint32_t>(VC);
 		constexpr uint32_t projectedUvConstantFlags = static_cast<uint32_t>(TruePbr) | static_cast<uint32_t>(VC) | static_cast<uint32_t>(ProjectedUV);
@@ -481,7 +525,7 @@ namespace Permutations
 		const std::unordered_set<uint32_t> projectedUvFlagValues = GenerateFlagPermutations(projectedUvFlags, projectedUvConstantFlags);
 		const std::unordered_set<uint32_t> lodObjectsFlagValues = GenerateFlagPermutations(lodObjectsFlags, defaultConstantFlags);
 		const std::unordered_set<uint32_t> treeFlagValues = GenerateFlagPermutations(treeFlags, defaultConstantFlags);
-		const std::unordered_set<uint32_t> landFlagValues = GenerateFlagPermutations(landFlags, defaultConstantFlags);
+		const std::unordered_set<uint32_t> landFlagValues = { defaultConstantFlags };
 
 		std::unordered_set<uint32_t> result;
 		AddLightingShaderDescriptors(SIE::ShaderCache::LightingShaderTechniques::None, defaultFlagValues, result);
@@ -494,7 +538,7 @@ namespace Permutations
 		return result;
 	}
 
-	std::unordered_set<uint32_t> GeneratePBRGrassPixelPermutations()
+	std::unordered_set<uint32_t> GeneratePBRGrassPermutations()
 	{
 		using enum SIE::ShaderCache::GrassShaderTechniques;
 		using enum SIE::ShaderCache::GrassShaderFlags;
@@ -502,27 +546,52 @@ namespace Permutations
 		return { static_cast<uint32_t>(TruePbr),
 			static_cast<uint32_t>(TruePbr) | static_cast<uint32_t>(AlphaTest) };
 	}
+
+	std::unordered_set<uint32_t> GeneratePBRGrassVertexPermutations()
+	{
+		return GeneratePBRGrassPermutations();
+	}
+
+	std::unordered_set<uint32_t> GeneratePBRGrassPixelPermutations()
+	{
+		return GeneratePBRGrassPermutations();
+	}
 }
 
 void TruePBR::GenerateShaderPermutations(RE::BSShader* shader)
 {
-	auto state = globals::state;
-	auto shaderCache = globals::shaderCache;
+	auto& shaderCache = SIE::ShaderCache::Instance();
 	if (shader->shaderType == RE::BSShader::Type::Lighting) {
+		const auto vertexPermutations = Permutations::GeneratePBRLightingVertexPermutations();
+		for (auto descriptor : vertexPermutations) {
+			auto vertexShaderDesriptor = descriptor;
+			auto pixelShaderDescriptor = descriptor;
+			State::GetSingleton()->ModifyShaderLookup(*shader, vertexShaderDesriptor, pixelShaderDescriptor);
+			std::ignore = shaderCache.GetVertexShader(*shader, vertexShaderDesriptor);
+		}
+
 		const auto pixelPermutations = Permutations::GeneratePBRLightingPixelPermutations();
 		for (auto descriptor : pixelPermutations) {
 			auto vertexShaderDesriptor = descriptor;
 			auto pixelShaderDescriptor = descriptor;
-			state->ModifyShaderLookup(*shader, vertexShaderDesriptor, pixelShaderDescriptor);
-			std::ignore = shaderCache->GetPixelShader(*shader, pixelShaderDescriptor);
+			State::GetSingleton()->ModifyShaderLookup(*shader, vertexShaderDesriptor, pixelShaderDescriptor);
+			std::ignore = shaderCache.GetPixelShader(*shader, pixelShaderDescriptor);
 		}
 	} else if (shader->shaderType == RE::BSShader::Type::Grass) {
+		const auto vertexPermutations = Permutations::GeneratePBRGrassVertexPermutations();
+		for (auto descriptor : vertexPermutations) {
+			auto vertexShaderDesriptor = descriptor;
+			auto pixelShaderDescriptor = descriptor;
+			State::GetSingleton()->ModifyShaderLookup(*shader, vertexShaderDesriptor, pixelShaderDescriptor);
+			std::ignore = shaderCache.GetVertexShader(*shader, vertexShaderDesriptor);
+		}
+
 		const auto pixelPermutations = Permutations::GeneratePBRGrassPixelPermutations();
 		for (auto descriptor : pixelPermutations) {
 			auto vertexShaderDesriptor = descriptor;
 			auto pixelShaderDescriptor = descriptor;
-			state->ModifyShaderLookup(*shader, vertexShaderDesriptor, pixelShaderDescriptor);
-			std::ignore = shaderCache->GetPixelShader(*shader, pixelShaderDescriptor);
+			State::GetSingleton()->ModifyShaderLookup(*shader, vertexShaderDesriptor, pixelShaderDescriptor);
+			std::ignore = shaderCache.GetPixelShader(*shader, pixelShaderDescriptor);
 		}
 	}
 }
@@ -675,7 +744,6 @@ struct BSLightingShaderProperty_GetRenderPasses
 				lightingFlags &= ~0b111000u;
 				if (isPbr) {
 					lightingFlags |= static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::TruePbr);
-					lightingFlags &= ~static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::Specular);
 					if (property->flags.any(RE::BSShaderProperty::EShaderPropertyFlag::kMultiTextureLandscape)) {
 						auto* material = static_cast<BSLightingShaderMaterialPBRLandscape*>(property->material);
 						if (material->HasGlint()) {
@@ -690,11 +758,6 @@ struct BSLightingShaderProperty_GetRenderPasses
 				}
 				lightingTechnique = (static_cast<uint32_t>(lightingType) << 24) | lightingFlags;
 				currentPass->passEnum = lightingTechnique + LightingTechniqueStart;
-
-				// Separate deferred and forward blended decals
-				if (currentPass->accumulationHint == 3 && currentPass->shaderProperty->flags.all(RE::BSShaderProperty::EShaderPropertyFlag::kZBufferWrite)) {
-					currentPass->accumulationHint = 16;
-				}
 			}
 			currentPass = currentPass->next;
 		}
@@ -715,10 +778,8 @@ struct BSLightingShader_SetupMaterial
 		auto lightingFlags = shader->currentRawTechnique & ~(~0u << 24);
 		auto lightingType = static_cast<SIE::ShaderCache::LightingShaderTechniques>((shader->currentRawTechnique >> 24) & 0x3F);
 		if (!(lightingType == LODLand || lightingType == LODLandNoise) && (lightingFlags & static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::TruePbr))) {
-			auto shadowState = globals::game::shadowState;
-			auto renderer = globals::game::renderer;
-			auto graphicsState = globals::game::graphicsState;
-			auto smState = globals::game::smState;
+			auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+			auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 
 			RE::BSGraphics::Renderer::PrepareVSConstantGroup(RE::BSGraphics::ConstantGroupLevel::PerMaterial);
 			RE::BSGraphics::Renderer::PreparePSConstantGroup(RE::BSGraphics::ConstantGroupLevel::PerMaterial);
@@ -765,7 +826,7 @@ struct BSLightingShader_SetupMaterial
 					for (uint32_t textureIndex = 0; textureIndex < BSLightingShaderMaterialPBRLandscape::NumTiles; ++textureIndex) {
 						if (pbrMaterial->isPbr[textureIndex]) {
 							flags |= (1 << textureIndex);
-							if (pbrMaterial->landscapeDisplacementTextures[textureIndex] != nullptr && pbrMaterial->landscapeDisplacementTextures[textureIndex] != graphicsState->GetRuntimeData().defaultTextureBlack) {
+							if (pbrMaterial->landscapeDisplacementTextures[textureIndex] != nullptr && pbrMaterial->landscapeDisplacementTextures[textureIndex] != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureBlack) {
 								flags |= (1 << (BSLightingShaderMaterialPBRLandscape::NumTiles + textureIndex));
 							}
 							if (pbrMaterial->glintParameters[textureIndex].enabled) {
@@ -905,7 +966,7 @@ struct BSLightingShader_SetupMaterial
 					shadowState->SetPSConstant(PBRProjectedUVParams2, RE::BSGraphics::ConstantGroupLevel::PerMaterial, lightingPSConstants.ParallaxOccData);
 				}
 
-				const bool hasEmissive = pbrMaterial->emissiveTexture != nullptr && pbrMaterial->emissiveTexture != graphicsState->GetRuntimeData().defaultTextureBlack;
+				const bool hasEmissive = pbrMaterial->emissiveTexture != nullptr && pbrMaterial->emissiveTexture != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureBlack;
 				if (hasEmissive) {
 					shadowState->SetPSTexture(6, pbrMaterial->emissiveTexture->rendererTexture);
 					shadowState->SetPSTextureAddressMode(6, static_cast<RE::BSGraphics::TextureAddressMode>(pbrMaterial->textureClampMode));
@@ -914,7 +975,7 @@ struct BSLightingShader_SetupMaterial
 					shaderFlags.set(PBRShaderFlags::HasEmissive);
 				}
 
-				const bool hasDisplacement = pbrMaterial->displacementTexture != nullptr && pbrMaterial->displacementTexture != graphicsState->GetRuntimeData().defaultTextureBlack;
+				const bool hasDisplacement = pbrMaterial->displacementTexture != nullptr && pbrMaterial->displacementTexture != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureBlack;
 				if (hasDisplacement) {
 					shadowState->SetPSTexture(4, pbrMaterial->displacementTexture->rendererTexture);
 					shadowState->SetPSTextureAddressMode(4, static_cast<RE::BSGraphics::TextureAddressMode>(pbrMaterial->textureClampMode));
@@ -923,7 +984,7 @@ struct BSLightingShader_SetupMaterial
 					shaderFlags.set(PBRShaderFlags::HasDisplacement);
 				}
 
-				const bool hasFeaturesTexture0 = pbrMaterial->featuresTexture0 != nullptr && pbrMaterial->featuresTexture0 != graphicsState->GetRuntimeData().defaultTextureWhite;
+				const bool hasFeaturesTexture0 = pbrMaterial->featuresTexture0 != nullptr && pbrMaterial->featuresTexture0 != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureWhite;
 				if (hasFeaturesTexture0) {
 					shadowState->SetPSTexture(12, pbrMaterial->featuresTexture0->rendererTexture);
 					shadowState->SetPSTextureAddressMode(12, static_cast<RE::BSGraphics::TextureAddressMode>(pbrMaterial->textureClampMode));
@@ -932,7 +993,7 @@ struct BSLightingShader_SetupMaterial
 					shaderFlags.set(PBRShaderFlags::HasFeaturesTexture0);
 				}
 
-				const bool hasFeaturesTexture1 = pbrMaterial->featuresTexture1 != nullptr && pbrMaterial->featuresTexture1 != graphicsState->GetRuntimeData().defaultTextureWhite;
+				const bool hasFeaturesTexture1 = pbrMaterial->featuresTexture1 != nullptr && pbrMaterial->featuresTexture1 != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureWhite;
 				if (hasFeaturesTexture1) {
 					shadowState->SetPSTexture(9, pbrMaterial->featuresTexture1->rendererTexture);
 					shadowState->SetPSTextureAddressMode(9, static_cast<RE::BSGraphics::TextureAddressMode>(pbrMaterial->textureClampMode));
@@ -955,7 +1016,7 @@ struct BSLightingShader_SetupMaterial
 			}
 
 			{
-				const uint32_t bufferIndex = smState->textureTransformCurrentBuffer;
+				const uint32_t bufferIndex = RE::BSShaderManager::State::GetSingleton().textureTransformCurrentBuffer;
 
 				std::array<float, 4> texCoordOffsetScale;
 				texCoordOffsetScale[0] = material->texCoordOffset[bufferIndex].x;
@@ -973,9 +1034,10 @@ struct BSLightingShader_SetupMaterial
 					shadowState->SetPSTextureAddressMode(11, RE::BSGraphics::TextureAddressMode::kClampSClampT);
 				}
 
+				const auto& smState = RE::BSShaderManager::State::GetSingleton();
 				std::array<float, 4> characterLightParams;
-				if (smState->characterLightEnabled) {
-					std::copy_n(smState->characterLightParams, 4, characterLightParams.data());
+				if (smState.characterLightEnabled) {
+					std::copy_n(smState.characterLightParams, 4, characterLightParams.data());
 				} else {
 					std::fill_n(characterLightParams.data(), 4, 0.f);
 				}
@@ -1005,7 +1067,7 @@ struct BSLightingShader_SetupGeometry
 		}
 
 		shader->currentRawTechnique &= ~0b111000u;
-		shader->currentRawTechnique |= (std::min((pass->numLights - 1), 7) << 3);
+		shader->currentRawTechnique |= ((pass->numLights - 1) << 3);
 
 		func(shader, pass, renderFlags);
 
@@ -1014,21 +1076,18 @@ struct BSLightingShader_SetupGeometry
 	static inline REL::Relocation<decltype(thunk)> func;
 };
 
-struct BSLightingShader_GetPixelTechnique
+uint32_t hk_BSLightingShader_GetPixelTechnique(uint32_t rawTechnique)
 {
-	static uint32_t thunk(uint32_t rawTechnique)
-	{
-		uint32_t pixelTechnique = rawTechnique;
+	uint32_t pixelTechnique = rawTechnique;
 
-		pixelTechnique &= ~0b111000000u;
-		if ((pixelTechnique & static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::ModelSpaceNormals)) == 0) {
-			pixelTechnique &= ~static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::Skinned);
-		}
-		pixelTechnique |= static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::VC);
-
-		return pixelTechnique;
+	pixelTechnique &= ~0b111000000u;
+	if ((pixelTechnique & static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::ModelSpaceNormals)) == 0) {
+		pixelTechnique &= ~static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::Skinned);
 	}
-};
+	pixelTechnique |= static_cast<uint32_t>(SIE::ShaderCache::LightingShaderFlags::VC);
+
+	return pixelTechnique;
+}
 
 void SetupPBRLandscapeTextureParameters(BSLightingShaderMaterialPBRLandscape& material, const TruePBR::PBRTextureSetData& textureSetData, uint32_t textureIndex)
 {
@@ -1049,8 +1108,7 @@ void SetupLandscapeTexture(BSLightingShaderMaterialPBRLandscape& material, RE::T
 		return;
 	}
 
-	auto truePBR = globals::truePBR;
-	auto* textureSetData = truePBR->GetPBRTextureSetData(landTexture.textureSet);
+	auto* textureSetData = TruePBR::GetSingleton()->GetPBRTextureSetData(landTexture.textureSet);
 	const bool isPbr = textureSetData != nullptr;
 
 	textureSets[textureIndex] = textureSetData;
@@ -1072,119 +1130,121 @@ void SetupLandscapeTexture(BSLightingShaderMaterialPBRLandscape& material, RE::T
 
 RE::TESLandTexture* GetDefaultLandTexture()
 {
-	static const auto defaultLandTextureAddress = REL::Relocation<RE::TESLandTexture**>(RELOCATION_ID(514783, 400936));
-	return *defaultLandTextureAddress;
+	static RE::TESLandTexture* const defaultLandTexture = *REL::Relocation<RE::TESLandTexture**>(RELOCATION_ID(514783, 400936));
+	return defaultLandTexture;
 }
 
-struct TESObjectLAND_SetupMaterial
-{
-	static bool thunk(RE::TESObjectLAND* land)
-	{
-		auto singleton = globals::truePBR;
+bool hk_TESObjectLAND_SetupMaterial(RE::TESObjectLAND* land);
+decltype(&hk_TESObjectLAND_SetupMaterial) ptr_TESObjectLAND_SetupMaterial;
 
-		bool isPbr = false;
-		if (land->loadedData != nullptr) {
-			for (uint32_t quadIndex = 0; quadIndex < 4; ++quadIndex) {
-				if (land->loadedData->defQuadTextures[quadIndex] != nullptr) {
-					if (singleton->IsPBRTextureSet(land->loadedData->defQuadTextures[quadIndex]->textureSet)) {
+bool hk_TESObjectLAND_SetupMaterial(RE::TESObjectLAND* land)
+{
+	auto* singleton = TruePBR::GetSingleton();
+
+	bool isPbr = false;
+	if (land->loadedData != nullptr) {
+		for (uint32_t quadIndex = 0; quadIndex < 4; ++quadIndex) {
+			if (land->loadedData->defQuadTextures[quadIndex] != nullptr) {
+				if (singleton->IsPBRTextureSet(land->loadedData->defQuadTextures[quadIndex]->textureSet)) {
+					isPbr = true;
+					break;
+				}
+			} else if (singleton->defaultPbrLandTextureSet != nullptr) {
+				isPbr = true;
+			}
+			for (uint32_t textureIndex = 0; textureIndex < 6; ++textureIndex) {
+				if (land->loadedData->quadTextures[quadIndex][textureIndex] != nullptr) {
+					if (singleton->IsPBRTextureSet(land->loadedData->quadTextures[quadIndex][textureIndex]->textureSet)) {
 						isPbr = true;
 						break;
 					}
-				} else if (singleton->defaultPbrLandTextureSet != nullptr) {
-					isPbr = true;
-				}
-				for (uint32_t textureIndex = 0; textureIndex < 6; ++textureIndex) {
-					if (land->loadedData->quadTextures[quadIndex][textureIndex] != nullptr) {
-						if (singleton->IsPBRTextureSet(land->loadedData->quadTextures[quadIndex][textureIndex]->textureSet)) {
-							isPbr = true;
-							break;
-						}
-					}
 				}
 			}
 		}
-
-		if (!isPbr) {
-			return func(land);
-		}
-
-		if (land->loadedData != nullptr && land->loadedData->mesh[0] != nullptr) {
-			land->data.flags.set(static_cast<RE::OBJ_LAND::Flag>(8));
-			for (uint32_t quadIndex = 0; quadIndex < 4; ++quadIndex) {
-				auto shaderProperty = static_cast<RE::BSLightingShaderProperty*>(globals::game::memoryManager->Allocate(REL::Module::IsVR() ? 0x178 : sizeof(RE::BSLightingShaderProperty), 0, false));
-				shaderProperty->Ctor();
-
-				{
-					BSLightingShaderMaterialPBRLandscape srcMaterial;
-					shaderProperty->LinkMaterial(&srcMaterial, true);
-				}
-
-				auto material = static_cast<BSLightingShaderMaterialPBRLandscape*>(shaderProperty->material);
-				const auto& stateData = globals::game::graphicsState->GetRuntimeData();
-
-				for (uint32_t textureIndex = 0; textureIndex < BSLightingShaderMaterialPBRLandscape::NumTiles; ++textureIndex) {
-					material->landscapeBaseColorTextures[textureIndex] = stateData.defaultTextureBlack;
-					material->landscapeNormalTextures[textureIndex] = stateData.defaultTextureNormalMap;
-					material->landscapeDisplacementTextures[textureIndex] = stateData.defaultTextureBlack;
-					material->landscapeRMAOSTextures[textureIndex] = stateData.defaultTextureWhite;
-				}
-
-				auto& textureSets = BSLightingShaderMaterialPBRLandscape::All[material];
-
-				if (auto defTexture = land->loadedData->defQuadTextures[quadIndex]) {
-					SetupLandscapeTexture(*material, *defTexture, 0, textureSets);
-				} else {
-					SetupLandscapeTexture(*material, *GetDefaultLandTexture(), 0, textureSets);
-				}
-				for (uint32_t textureIndex = 0; textureIndex < BSLightingShaderMaterialPBRLandscape::NumTiles - 1; ++textureIndex) {
-					if (auto landTexture = land->loadedData->quadTextures[quadIndex][textureIndex]) {
-						SetupLandscapeTexture(*material, *landTexture, textureIndex + 1, textureSets);
-					}
-				}
-
-				if (globals::game::bEnableLandFade->GetBool()) {
-					shaderProperty->unk108 = false;
-				}
-
-				bool noLODLandBlend = false;
-				auto tes = globals::game::tes;
-				auto worldSpace = tes->GetRuntimeData2().worldSpace;
-				if (worldSpace != nullptr) {
-					if (auto terrainManager = worldSpace->GetTerrainManager()) {
-						noLODLandBlend = reinterpret_cast<bool*>(terrainManager)[0x36];
-					}
-				}
-				shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kMultiTextureLandscape, true);
-				shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kReceiveShadows, true);
-
-				shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kCastShadows, true);
-				shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kNoLODLandBlend, noLODLandBlend);
-
-				shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kVertexLighting, true);
-
-				const auto& children = land->loadedData->mesh[quadIndex]->GetChildren();
-				auto geometry = children.empty() ? nullptr : static_cast<RE::BSGeometry*>(children[0].get());
-				shaderProperty->SetupGeometry(geometry);
-				if (geometry != nullptr) {
-					geometry->GetGeometryRuntimeData().properties[1] = RE::NiPointer(shaderProperty);
-				}
-
-				globals::game::smState->shadowSceneNode[0]->AttachObject(geometry);
-			}
-
-			return true;
-		}
-
-		return false;
 	}
-	static inline REL::Relocation<decltype(thunk)> func;
-};
+
+	if (!isPbr) {
+		return ptr_TESObjectLAND_SetupMaterial(land);
+	}
+
+	static const auto settings = RE::INISettingCollection::GetSingleton();
+	static const bool bEnableLandFade = settings->GetSetting("bEnableLandFade:Display");
+	static const bool bDrawLandShadows = settings->GetSetting("bDrawLandShadows:Display");
+
+	if (land->loadedData != nullptr && land->loadedData->mesh[0] != nullptr) {
+		land->data.flags.set(static_cast<RE::OBJ_LAND::Flag>(8));
+		for (uint32_t quadIndex = 0; quadIndex < 4; ++quadIndex) {
+			auto shaderProperty = static_cast<RE::BSLightingShaderProperty*>(RE::MemoryManager::GetSingleton()->Allocate(sizeof(RE::BSLightingShaderProperty), 0, false));
+			shaderProperty->Ctor();
+
+			{
+				BSLightingShaderMaterialPBRLandscape srcMaterial;
+				shaderProperty->LinkMaterial(&srcMaterial, true);
+			}
+
+			auto material = static_cast<BSLightingShaderMaterialPBRLandscape*>(shaderProperty->material);
+			const auto& stateData = RE::BSGraphics::State::GetSingleton()->GetRuntimeData();
+
+			for (uint32_t textureIndex = 0; textureIndex < BSLightingShaderMaterialPBRLandscape::NumTiles; ++textureIndex) {
+				material->landscapeBaseColorTextures[textureIndex] = stateData.defaultTextureBlack;
+				material->landscapeNormalTextures[textureIndex] = stateData.defaultTextureNormalMap;
+				material->landscapeDisplacementTextures[textureIndex] = stateData.defaultTextureBlack;
+				material->landscapeRMAOSTextures[textureIndex] = stateData.defaultTextureWhite;
+			}
+
+			auto& textureSets = BSLightingShaderMaterialPBRLandscape::All[material];
+
+			if (auto defTexture = land->loadedData->defQuadTextures[quadIndex]) {
+				SetupLandscapeTexture(*material, *defTexture, 0, textureSets);
+			} else {
+				SetupLandscapeTexture(*material, *GetDefaultLandTexture(), 0, textureSets);
+			}
+			for (uint32_t textureIndex = 0; textureIndex < BSLightingShaderMaterialPBRLandscape::NumTiles - 1; ++textureIndex) {
+				if (auto landTexture = land->loadedData->quadTextures[quadIndex][textureIndex]) {
+					SetupLandscapeTexture(*material, *landTexture, textureIndex + 1, textureSets);
+				}
+			}
+
+			if (bEnableLandFade) {
+				shaderProperty->unk108 = false;
+			}
+
+			bool noLODLandBlend = false;
+			auto tes = RE::TES::GetSingleton();
+			auto worldSpace = tes->GetRuntimeData2().worldSpace;
+			if (worldSpace != nullptr) {
+				if (auto terrainManager = worldSpace->GetTerrainManager()) {
+					noLODLandBlend = reinterpret_cast<bool*>(terrainManager)[0x36];
+				}
+			}
+			shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kMultiTextureLandscape, true);
+			shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kReceiveShadows, true);
+			shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kCastShadows, bDrawLandShadows);
+			shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kNoLODLandBlend, noLODLandBlend);
+
+			shaderProperty->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kVertexLighting, true);
+
+			const auto& children = land->loadedData->mesh[quadIndex]->GetChildren();
+			auto geometry = children.empty() ? nullptr : static_cast<RE::BSGeometry*>(children[0].get());
+			shaderProperty->SetupGeometry(geometry);
+			if (geometry != nullptr) {
+				geometry->GetGeometryRuntimeData().properties[1] = RE::NiPointer(shaderProperty);
+			}
+
+			RE::BSShaderManager::State::GetSingleton().shadowSceneNode[0]->AttachObject(geometry);
+		}
+
+		return true;
+	}
+
+	return false;
+}
 
 struct TESForm_GetFormEditorID
 {
 	static const char* thunk(const RE::TESForm* form)
 	{
-		auto* singleton = globals::truePBR;
+		auto* singleton = TruePBR::GetSingleton();
 		auto it = singleton->editorIDs.find(form->GetFormID());
 		if (it == singleton->editorIDs.cend()) {
 			return "";
@@ -1198,70 +1258,65 @@ struct TESForm_SetFormEditorID
 {
 	static bool thunk(RE::TESForm* form, const char* editorId)
 	{
-		auto* singleton = globals::truePBR;
+		auto* singleton = TruePBR::GetSingleton();
 		singleton->editorIDs[form->GetFormID()] = editorId;
 		return true;
 	}
 	static inline REL::Relocation<decltype(thunk)> func;
 };
 
-struct SetPerFrameBuffers
+void hk_SetPerFrameBuffers(void* renderer);
+decltype(&hk_SetPerFrameBuffers) ptr_SetPerFrameBuffers;
+
+void hk_SetPerFrameBuffers(void* renderer)
 {
-	static void thunk(void* renderer)
-	{
-		func(renderer);
-		auto* singleton = globals::truePBR;
-		singleton->SetupFrame();
-	}
-	static inline REL::Relocation<decltype(thunk)> func;
-};
+	ptr_SetPerFrameBuffers(renderer);
+	TruePBR::GetSingleton()->SetupFrame();
+}
 
-struct BSTempEffectSimpleDecal_SetupGeometry
+void hk_BSTempEffectSimpleDecal_SetupGeometry(RE::BSTempEffectSimpleDecal* decal, RE::BSGeometry* geometry, RE::BGSTextureSet* textureSet, bool blended);
+decltype(&hk_BSTempEffectSimpleDecal_SetupGeometry) ptr_BSTempEffectSimpleDecal_SetupGeometry;
+
+void hk_BSTempEffectSimpleDecal_SetupGeometry(RE::BSTempEffectSimpleDecal* decal, RE::BSGeometry* geometry, RE::BGSTextureSet* textureSet, bool blended)
 {
-	static void thunk(RE::BSTempEffectSimpleDecal* decal, RE::BSGeometry* geometry, RE::BGSTextureSet* textureSet, bool blended)
-	{
-		func(decal, geometry, textureSet, blended);
-		auto* singleton = globals::truePBR;
+	ptr_BSTempEffectSimpleDecal_SetupGeometry(decal, geometry, textureSet, blended);
 
-		if (auto* shaderProperty = netimmerse_cast<RE::BSLightingShaderProperty*>(geometry->GetGeometryRuntimeData().properties[1].get());
-			shaderProperty != nullptr && singleton->IsPBRTextureSet(textureSet)) {
-			{
-				BSLightingShaderMaterialPBR srcMaterial;
-				shaderProperty->LinkMaterial(&srcMaterial, true);
-			}
+	if (auto* shaderProperty = netimmerse_cast<RE::BSLightingShaderProperty*>(geometry->GetGeometryRuntimeData().properties[1].get());
+		shaderProperty != nullptr && TruePBR::GetSingleton()->IsPBRTextureSet(textureSet)) {
+		{
+			BSLightingShaderMaterialPBR srcMaterial;
+			shaderProperty->LinkMaterial(&srcMaterial, true);
+		}
 
-			auto pbrMaterial = static_cast<BSLightingShaderMaterialPBR*>(shaderProperty->material);
-			pbrMaterial->OnLoadTextureSet(0, textureSet);
+		auto pbrMaterial = static_cast<BSLightingShaderMaterialPBR*>(shaderProperty->material);
+		pbrMaterial->OnLoadTextureSet(0, textureSet);
 
-			constexpr static RE::NiColor whiteColor(1.f, 1.f, 1.f);
-			*shaderProperty->emissiveColor = whiteColor;
-			const bool hasEmissive = pbrMaterial->emissiveTexture != nullptr && pbrMaterial->emissiveTexture != globals::game::graphicsState->GetRuntimeData().defaultTextureBlack;
-			shaderProperty->emissiveMult = hasEmissive ? 1.f : 0.f;
+		constexpr static RE::NiColor whiteColor(1.f, 1.f, 1.f);
+		*shaderProperty->emissiveColor = whiteColor;
+		const bool hasEmissive = pbrMaterial->emissiveTexture != nullptr && pbrMaterial->emissiveTexture != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureBlack;
+		shaderProperty->emissiveMult = hasEmissive ? 1.f : 0.f;
 
-			{
-				using enum RE::BSShaderProperty::EShaderPropertyFlag8;
-				shaderProperty->SetFlags(kParallaxOcclusion, false);
-				shaderProperty->SetFlags(kParallax, false);
-				shaderProperty->SetFlags(kGlowMap, false);
-				shaderProperty->SetFlags(kEnvMap, false);
-				shaderProperty->SetFlags(kSpecular, false);
+		{
+			using enum RE::BSShaderProperty::EShaderPropertyFlag8;
+			shaderProperty->SetFlags(kParallaxOcclusion, false);
+			shaderProperty->SetFlags(kParallax, false);
+			shaderProperty->SetFlags(kGlowMap, false);
+			shaderProperty->SetFlags(kEnvMap, false);
+			shaderProperty->SetFlags(kSpecular, false);
 
-				shaderProperty->SetFlags(kVertexLighting, true);
-			}
+			shaderProperty->SetFlags(kVertexLighting, true);
 		}
 	}
-	static inline REL::Relocation<decltype(thunk)> func;
-};
+}
 
 struct BSTempEffectGeometryDecal_Initialize
 {
 	static void thunk(RE::BSTempEffectGeometryDecal* decal)
 	{
 		func(decal);
-		auto* singleton = globals::truePBR;
 
-		if (decal->decal != nullptr && singleton->IsPBRTextureSet(decal->texSet)) {
-			auto shaderProperty = static_cast<RE::BSLightingShaderProperty*>(globals::game::memoryManager->Allocate(sizeof(RE::BSLightingShaderProperty), 0, false));
+		if (decal->decal != nullptr && TruePBR::GetSingleton()->IsPBRTextureSet(decal->texSet)) {
+			auto shaderProperty = static_cast<RE::BSLightingShaderProperty*>(RE::MemoryManager::GetSingleton()->Allocate(sizeof(RE::BSLightingShaderProperty), 0, false));
 			shaderProperty->Ctor();
 
 			{
@@ -1274,7 +1329,7 @@ struct BSTempEffectGeometryDecal_Initialize
 
 			constexpr static RE::NiColor whiteColor(1.f, 1.f, 1.f);
 			*shaderProperty->emissiveColor = whiteColor;
-			const bool hasEmissive = pbrMaterial->emissiveTexture != nullptr && pbrMaterial->emissiveTexture != globals::game::graphicsState->GetRuntimeData().defaultTextureBlack;
+			const bool hasEmissive = pbrMaterial->emissiveTexture != nullptr && pbrMaterial->emissiveTexture != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureBlack;
 			shaderProperty->emissiveMult = hasEmissive ? 1.f : 0.f;
 
 			{
@@ -1367,9 +1422,9 @@ struct BSGrassShader_SetupTechnique
 	static bool thunk(RE::BSShader* shader, uint32_t globalTechnique)
 	{
 		if (globalTechnique == 0x5C000042) {
-			auto shadowState = globals::game::shadowState;
-			auto graphicsState = globals::game::graphicsState;
-			auto renderer = globals::game::renderer;
+			auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+			auto* graphicsState = RE::BSGraphics::State::GetSingleton();
+			auto* renderer = RE::BSGraphics::Renderer::GetSingleton();
 
 			const uint32_t localTechnique = static_cast<uint32_t>(SIE::ShaderCache::GrassShaderTechniques::TruePbr);
 			uint32_t shaderDescriptor = localTechnique;
@@ -1377,7 +1432,7 @@ struct BSGrassShader_SetupTechnique
 				shaderDescriptor |= static_cast<uint32_t>(SIE::ShaderCache::GrassShaderFlags::AlphaTest);
 			}
 
-			const bool began = Hooks::BSShader_BeginTechnique::thunk(shader, shaderDescriptor, shaderDescriptor, false);
+			const bool began = Hooks::hk_BSShader_BeginTechnique(shader, shaderDescriptor, shaderDescriptor, false);
 			if (!began) {
 				return false;
 			}
@@ -1385,14 +1440,17 @@ struct BSGrassShader_SetupTechnique
 			static auto fogMethod = REL::Relocation<void (*)()>(REL::RelocationID(100000, 106707));
 			fogMethod();
 
-			if (!globals::game::bShadowsOnGrass->GetBool()) {
+			static auto* bShadowsOnGrass = RE::GetINISetting("bShadowsOnGrass:Display");
+			if (!bShadowsOnGrass->GetBool()) {
 				shadowState->SetPSTexture(1, graphicsState->GetRuntimeData().defaultTextureWhite->rendererTexture);
 				shadowState->SetPSTextureAddressMode(1, RE::BSGraphics::TextureAddressMode::kClampSClampT);
 				shadowState->SetPSTextureFilterMode(1, RE::BSGraphics::TextureFilterMode::kNearest);
 			} else {
 				shadowState->SetPSTexture(1, renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGET::kSHADOW_MASK]);
 				shadowState->SetPSTextureAddressMode(1, RE::BSGraphics::TextureAddressMode::kClampSClampT);
-				shadowState->SetPSTextureFilterMode(1, globals::game::shadowMaskQuarter->GetSInt() != 4 ? RE::BSGraphics::TextureFilterMode::kBilinear : RE::BSGraphics::TextureFilterMode::kNearest);
+
+				static auto* shadowMaskQuarter = RE::GetINISetting("iShadowMaskQuarter:Display");
+				shadowState->SetPSTextureFilterMode(1, shadowMaskQuarter->GetSInt() != 4 ? RE::BSGraphics::TextureFilterMode::kBilinear : RE::BSGraphics::TextureFilterMode::kNearest);
 			}
 
 			return true;
@@ -1407,13 +1465,13 @@ struct BSGrassShader_SetupMaterial
 {
 	static void thunk(RE::BSShader* shader, RE::BSLightingShaderMaterialBase const* material)
 	{
-		const auto state = globals::state;
+		const auto& state = State::GetSingleton();
 		const auto technique = static_cast<SIE::ShaderCache::GrassShaderTechniques>(state->currentPixelDescriptor & 0b1111);
 
 		const auto& grassPSConstants = ShaderConstants::GrassPS::Get();
 
 		if (technique == SIE::ShaderCache::GrassShaderTechniques::TruePbr) {
-			auto shadowState = globals::game::shadowState;
+			auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
 
 			RE::BSGraphics::Renderer::PreparePSConstantGroup(RE::BSGraphics::ConstantGroupLevel::PerMaterial);
 
@@ -1435,7 +1493,7 @@ struct BSGrassShader_SetupMaterial
 				shaderFlags.set(PBRShaderFlags::Subsurface);
 			}
 
-			const bool hasSubsurface = pbrMaterial->featuresTexture0 != nullptr && pbrMaterial->featuresTexture0 != globals::game::graphicsState->GetRuntimeData().defaultTextureWhite;
+			const bool hasSubsurface = pbrMaterial->featuresTexture0 != nullptr && pbrMaterial->featuresTexture0 != RE::BSGraphics::State::GetSingleton()->GetRuntimeData().defaultTextureWhite;
 			if (hasSubsurface) {
 				shadowState->SetPSTexture(4, pbrMaterial->featuresTexture0->rendererTexture);
 				shadowState->SetPSTextureAddressMode(4, static_cast<RE::BSGraphics::TextureAddressMode>(pbrMaterial->textureClampMode));
@@ -1477,12 +1535,11 @@ struct TESBoundObject_Clone3D
 {
 	static RE::NiAVObject* thunk(RE::TESBoundObject* object, RE::TESObjectREFR* ref, bool arg3)
 	{
-		auto truePBR = globals::truePBR;
 		auto* result = func(object, ref, arg3);
 		if (result != nullptr && ref != nullptr && ref->data.objectReference != nullptr && ref->data.objectReference->formType == RE::FormType::Static) {
 			auto* stat = static_cast<RE::TESObjectSTAT*>(ref->data.objectReference);
 			if (stat->data.materialObj != nullptr && stat->data.materialObj->directionalData.singlePass) {
-				if (auto* pbrData = truePBR->GetPBRMaterialObjectData(stat->data.materialObj)) {
+				if (auto* pbrData = TruePBR::GetSingleton()->GetPBRMaterialObjectData(stat->data.materialObj)) {
 					RE::BSVisit::TraverseScenegraphGeometries(result, [pbrData](RE::BSGeometry* geometry) {
 						if (auto* shaderProperty = static_cast<RE::BSShaderProperty*>(geometry->GetGeometryRuntimeData().properties[1].get())) {
 							if (shaderProperty->GetMaterialType() == RE::BSShaderMaterial::Type::kLighting &&
@@ -1504,47 +1561,41 @@ struct TESBoundObject_Clone3D
 	static inline REL::Relocation<decltype(thunk)> func;
 };
 
-struct BGSTextureSet_ToShaderTextureSet
+RE::BSShaderTextureSet* hk_BGSTextureSet_ToShaderTextureSet(RE::BGSTextureSet* textureSet);
+decltype(&hk_BGSTextureSet_ToShaderTextureSet) ptr_BGSTextureSet_ToShaderTextureSet;
+RE::BSShaderTextureSet* hk_BGSTextureSet_ToShaderTextureSet(RE::BGSTextureSet* textureSet)
 {
-	static RE::BSShaderTextureSet* thunk(RE::BGSTextureSet* textureSet)
-	{
-		auto truePBR = globals::truePBR;
-		truePBR->currentTextureSet = textureSet;
+	TruePBR::GetSingleton()->currentTextureSet = textureSet;
 
-		return func(textureSet);
-	}
-	static inline REL::Relocation<decltype(thunk)> func;
-};
+	return ptr_BGSTextureSet_ToShaderTextureSet(textureSet);
+}
 
-struct BSLightingShaderProperty_OnLoadTextureSet
+void hk_BSLightingShaderProperty_OnLoadTextureSet(RE::BSLightingShaderProperty* property, void* a2);
+decltype(&hk_BSLightingShaderProperty_OnLoadTextureSet) ptr_BSLightingShaderProperty_OnLoadTextureSet;
+void hk_BSLightingShaderProperty_OnLoadTextureSet(RE::BSLightingShaderProperty* property, void* a2)
 {
-	static void thunk(RE::BSLightingShaderProperty* property, void* a2)
-	{
-		func(property, a2);
+	ptr_BSLightingShaderProperty_OnLoadTextureSet(property, a2);
 
-		auto truePBR = globals::truePBR;
-		truePBR->currentTextureSet = nullptr;
-	}
-	static inline REL::Relocation<decltype(thunk)> func;
-};
+	TruePBR::GetSingleton()->currentTextureSet = nullptr;
+}
 
 void TruePBR::PostPostLoad()
 {
 	logger::info("Hooking BGSTextureSet");
-	stl::detour_thunk<BGSTextureSet_ToShaderTextureSet>(REL::RelocationID(20905, 21361));
+	*(uintptr_t*)&ptr_BGSTextureSet_ToShaderTextureSet = Detours::X64::DetourFunction(REL::RelocationID(20905, 21361).address(), (uintptr_t)&hk_BGSTextureSet_ToShaderTextureSet);
 
 	logger::info("Hooking BSLightingShaderProperty");
 	stl::write_vfunc<0x18, BSLightingShaderProperty_LoadBinary>(RE::VTABLE_BSLightingShaderProperty[0]);
 	stl::write_vfunc<0x2A, BSLightingShaderProperty_GetRenderPasses>(RE::VTABLE_BSLightingShaderProperty[0]);
-	stl::detour_thunk<BSLightingShaderProperty_OnLoadTextureSet>(REL::RelocationID(99865, 106510));
+	*(uintptr_t*)&ptr_BSLightingShaderProperty_OnLoadTextureSet = Detours::X64::DetourFunction(REL::RelocationID(99865, 106510).address(), (uintptr_t)&hk_BSLightingShaderProperty_OnLoadTextureSet);
 
 	logger::info("Hooking BSLightingShader");
 	stl::write_vfunc<0x4, BSLightingShader_SetupMaterial>(RE::VTABLE_BSLightingShader[0]);
 	stl::write_vfunc<0x6, BSLightingShader_SetupGeometry>(RE::VTABLE_BSLightingShader[0]);
-	stl::detour_thunk_ignore_func<BSLightingShader_GetPixelTechnique>(REL::RelocationID(101633, 108700));
+	std::ignore = Detours::X64::DetourFunction(REL::RelocationID(101633, 108700).address(), (uintptr_t)&hk_BSLightingShader_GetPixelTechnique);
 
 	logger::info("Hooking TESObjectLAND");
-	stl::detour_thunk<TESObjectLAND_SetupMaterial>(REL::RelocationID(18368, 18791));
+	*(uintptr_t*)&ptr_TESObjectLAND_SetupMaterial = Detours::X64::DetourFunction(REL::RelocationID(18368, 18791).address(), (uintptr_t)&hk_TESObjectLAND_SetupMaterial);
 
 	logger::info("Hooking TESLandTexture");
 	stl::write_vfunc<0x32, TESForm_GetFormEditorID>(RE::VTABLE_TESLandTexture[0]);
@@ -1559,10 +1610,10 @@ void TruePBR::PostPostLoad()
 	stl::write_vfunc<0x33, TESForm_SetFormEditorID>(RE::VTABLE_TESWeather[0]);
 
 	logger::info("Hooking SetPerFrameBuffers");
-	stl::detour_thunk<SetPerFrameBuffers>(REL::RelocationID(75570, 77371));
+	*(uintptr_t*)&ptr_SetPerFrameBuffers = Detours::X64::DetourFunction(REL::RelocationID(75570, 77371).address(), (uintptr_t)&hk_SetPerFrameBuffers);
 
 	logger::info("Hooking BSTempEffectSimpleDecal");
-	stl::detour_thunk<BSTempEffectSimpleDecal_SetupGeometry>(REL::RelocationID(29253, 30108));
+	*(uintptr_t*)&ptr_BSTempEffectSimpleDecal_SetupGeometry = Detours::X64::DetourFunction(REL::RelocationID(29253, 30108).address(), (uintptr_t)&hk_BSTempEffectSimpleDecal_SetupGeometry);
 
 	logger::info("Hooking BSTempEffectGeometryDecal");
 	stl::write_vfunc<0x25, BSTempEffectGeometryDecal_Initialize>(RE::VTABLE_BSTempEffectGeometryDecal[0]);
@@ -1584,25 +1635,18 @@ void TruePBR::PostPostLoad()
 void TruePBR::DataLoaded()
 {
 	defaultPbrLandTextureSet = RE::TESForm::LookupByEditorID<RE::BGSTextureSet>("DefaultPBRLand");
-	SetupDefaultPBRLandTextureSet();
-}
-
-void TruePBR::SetupDefaultPBRLandTextureSet()
-{
-	if (!defaultLandTextureSetReplaced && defaultPbrLandTextureSet != nullptr) {
-		if (auto* defaultLandTexture = GetDefaultLandTexture()) {
-			logger::info("[TruePBR] replacing default land texture set record with {}", defaultPbrLandTextureSet->GetFormEditorID());
-			defaultLandTexture->textureSet = defaultPbrLandTextureSet;
-			defaultLandTextureSetReplaced = true;
-		}
+	if (defaultPbrLandTextureSet != nullptr) {
+		logger::info("[TruePBR] replacing default land texture set record with {}", defaultPbrLandTextureSet->GetFormEditorID());
+		GetDefaultLandTexture()->textureSet = defaultPbrLandTextureSet;
 	}
 }
 
-void TruePBR::SetShaderResouces(ID3D11DeviceContext* a_context)
+void TruePBR::SetShaderResouces()
 {
+	auto context = State::GetSingleton()->context;
 	for (uint32_t textureIndex = 0; textureIndex < ExtendedRendererState::NumPSTextures; ++textureIndex) {
 		if (extendedRendererState.PSResourceModifiedBits & (1 << textureIndex)) {
-			a_context->PSSetShaderResources(ExtendedRendererState::FirstPSTexture + textureIndex, 1, &extendedRendererState.PSTexture[textureIndex]);
+			context->PSSetShaderResources(ExtendedRendererState::FirstPSTexture + textureIndex, 1, &extendedRendererState.PSTexture[textureIndex]);
 		}
 	}
 	extendedRendererState.PSResourceModifiedBits = 0;

@@ -1,9 +1,15 @@
 #pragma once
 
-#include <BS_thread_pool.hpp>
-#include <efsw/efsw.hpp>
+#include <RE/B/BSShader.h>
 
-static constexpr REL::Version SHADER_CACHE_VERSION = { 0, 0, 0, 28 };
+#include "BS_thread_pool.hpp"
+#include "efsw/efsw.hpp"
+#include <chrono>
+#include <condition_variable>
+#include <unordered_map>
+#include <unordered_set>
+
+static constexpr REL::Version SHADER_CACHE_VERSION = { 0, 0, 0, 20 };
 
 using namespace std::chrono;
 
@@ -152,45 +158,6 @@ namespace ShaderConstants
 		const int32_t PBRParams1 = 1;
 		const int32_t PBRParams2 = 2;
 	};
-
-	struct EffectPS
-	{
-		static const EffectPS& Get()
-		{
-			static EffectPS instance = REL::Module::IsVR() ? GetVR() : GetFlat();
-			return instance;
-		}
-
-		static EffectPS GetFlat()
-		{
-			return EffectPS{};
-		}
-
-		static EffectPS GetVR()
-		{
-			return EffectPS{};
-		}
-
-		const int32_t PropertyColor = 0;
-		const int32_t AlphaTestRef = 1;
-		const int32_t MembraneRimColor = 2;
-		const int32_t MembraneVars = 3;
-		const int32_t PLightPositionX = 4;
-		const int32_t PLightPositionY = 5;
-		const int32_t PLightPositionZ = 6;
-		const int32_t PLightingRadiusInverseSquared = 7;
-		const int32_t PLightColorR = 8;
-		const int32_t PLightColorG = 9;
-		const int32_t PLightColorB = 10;
-		const int32_t DLightColor = 11;
-		const int32_t VPOSOffset = 12;
-		const int32_t CameraData = 13;
-		const int32_t FilteringParam = 14;
-		const int32_t BaseColor = 15;
-		const int32_t BaseColorScale = 16;
-		const int32_t LightingInfluence = 17;
-		const int32_t ExtendedFlags = 18;
-	};
 }
 
 namespace SIE
@@ -334,53 +301,20 @@ namespace SIE
 		void StartFileWatcher();
 		void StopFileWatcher();
 
-		/**
-		 * @brief Updates the shader modification time for the given shader type.
-		 * 
-		 * This function checks if the shader's file modification time has changed or 
-		 * forces an update based on the a_forceUpdate flag. If the file does not exist, 
-		 * or the shader type is invalid, the update is skipped.
-		 * 
-		 * @param a_type The shader type as a string (case insensitive).
-		 * @param a_forceUpdate If true, forces an update regardless of the actual file modification time.
-		 * @return true if the shader modification time was updated, false otherwise.
-		 */
-		bool UpdateShaderModifiedTime(const std::string& a_type, boolean a_forceUpdate = false);
-		/**
-		 * @brief Checks if the shader has been modified since the given time.
-		 * 
-		 * This function compares the shader's last modification time against the provided
-		 * time point to determine if it has been updated.
-		 * 
-		 * @param a_type The shader type as a string (case insensitive).
-		 * @param a_current The time point to compare against.
-		 * @return true if the shader has been modified after the given time point, false otherwise.
-		 */
-		bool ShaderModifiedSince(const std::string& a_type, system_clock::time_point a_current);
+		/** @brief Update the RE::BSShader::Type timestamp based on timestamp.
+		@param  a_type Case insensitive string for the type of shader. E.g., Lighting
+		@return True if the shader for the type (i.e., Lighting.hlsl) timestamp was updated
+		*/
+		bool UpdateShaderModifiedTime(std::string a_type);
+		/** @brief Whether the ShaderFile for RE::BSShader::Type has been modified since the timestamp.
+		@param  a_type Case insensitive string for the type of shader. E.g., Lighting
+		@param  a_current The current time in system_clock::time_point.
+		@return True if the shader for the type (i.e., Lighting.hlsl) has been modified since the timestamp
+		*/
+		bool ShaderModifiedSince(std::string a_type, system_clock::time_point a_current);
 
 		void Clear();
 		void Clear(RE::BSShader::Type a_type);
-		/**
-   		* @brief Clears and marks shaders for recompilation based on the given path.
- 		*
- 		* This function looks up the provided `a_path` in the `hlslToShaderMap`. 
-		* If the path exists in the map, it iterates through all the shader entries associated 
-		* with that path, clears the shaders, and marks them for recompilation by updating their 
-		* modified times, and logs the operation.
-		*
-		* @param a_path The file path associated with the shaders to be marked for recompilation.
-		* 
-		* @returns bool whether a shader was found in the `hlslToShaderMap`
-		* 
-		* @note The function assumes that `a_path` corresponds to shaders stored in `hlslToShaderMap`.
-		* If the path is not found in the map, the function does nothing. Also, only files compiled
-		* during session will be identified. Disk cached shaders will not be cleared and a further 
-		* cache clear may be necessary.
-		* 
-		* @threadsafe The function locks the internal map (`mapMutex`) to ensure thread safety when 
-		* accessing or modifying shared shader map data.
-		*/
-		bool Clear(const std::string& a_path);
 
 		bool AddCompletedShader(ShaderClass shaderClass, const RE::BSShader& shader, uint32_t descriptor, ID3DBlob* a_blob);
 		ID3DBlob* GetCompletedShader(const std::string& a_key);
@@ -414,15 +348,7 @@ namespace SIE
 		void IterateShaderBlock(bool a_forward = true);
 		bool IsHideErrors();
 
-		/**
-		 * @brief Clears all shaders of a specific type from the shader map.
-		 * 
-		 * This function removes all shaders of the specified type (`RE::BSShader::Type`) from the shader map. 
-		 * 
-		 * @param a_type The shader type (e.g., Grass, Sky, Water) to be cleared from the map.
-		 */
-		void ClearShaderMap(RE::BSShader::Type a_type);
-		void InsertModifiedShaderMap(const std::string& a_shader, std::chrono::time_point<std::chrono::system_clock> a_time);
+		void InsertModifiedShaderMap(std::string a_shader, std::chrono::time_point<std::chrono::system_clock> a_time);
 		std::chrono::time_point<std::chrono::system_clock> GetModifiedShaderMapTime(const std::string& a_shader);
 
 		int32_t compilationThreadCount = std::max({ static_cast<int32_t>(std::thread::hardware_concurrency()) - 4, static_cast<int32_t>(std::thread::hardware_concurrency()) * 3 / 4, 1 });
@@ -628,19 +554,6 @@ namespace SIE
 		HANDLE managementThread = nullptr;
 
 	private:
-		struct hlslRecord
-		{
-			std::string key;
-			RE::BSShader::Type type;
-			std::uint32_t descriptor;
-			SIE::ShaderClass shaderClass;
-			std::wstring diskPath;
-
-			bool operator<(const hlslRecord& other) const
-			{
-				return key < other.key;
-			}
-		};
 		ShaderCache();
 		void ManageCompilationSet(std::stop_token stoken);
 		void ProcessCompilationSet(std::stop_token stoken, SIE::ShaderCompilationTask task);
@@ -670,11 +583,9 @@ namespace SIE
 		std::mutex computeShadersMutex;
 		CompilationSet compilationSet;
 		std::unordered_map<std::string, ShaderCacheResult> shaderMap{};
-		std::mutex mapMutex;                                                            // guard for shaderMap
+		std::mutex mapMutex;
 		std::unordered_map<std::string, system_clock::time_point> modifiedShaderMap{};  // hashmap when a shader source file last modified
-		std::mutex modifiedMapMutex;                                                    // guard for modifiedShaderMap
-		std::unordered_map<std::string, std::set<hlslRecord>> hlslToShaderMap{};        // hashmap linking specific hlsl files to shader keys in shaderMap
-		std::mutex hlslMapMutex;                                                        // guard for hlslToShaderMap
+		std::mutex modifiedMapMutex;
 
 		// efsw file watcher
 		efsw::FileWatcher* fileWatcher = nullptr;
@@ -686,24 +597,7 @@ namespace SIE
 	class UpdateListener : public efsw::FileWatchListener
 	{
 	public:
-		/**
-		 * @brief Updates the shader cache for a specific file path and determines whether to clear the cache.
-		 *
-		 * This function checks if the given file exists and is a shader file (with the ".hlsl" extension).
-		 * It then updates the cache with the modified time for the shader file and marks shaders for recompilation 
-		 * based on the given path. If a specific shader is not found in the cache, it may trigger a cache clear.
-		 *
-		 * @param filePath The path of the shader file to update.
-		 * @param cache Reference to the shader cache to update.
-		 * @param clearCache A boolean flag indicating whether the entire cache should be cleared.
-		 * @param fileDone A boolean flag that signals whether the update process is done for the current file.
-		 * 
-		 * @note The function only processes files with an ".hlsl" extension and ignores directories.
-		 * It assumes case-insensitive handling for shader types and extensions.
-		 * 
-		 * @return Void. Updates internal state and modifies `clearCache` and `fileDone` by reference.
-		 */
-		void UpdateCache(const std::filesystem::path& filePath, SIE::ShaderCache* cache, bool& clearCache, bool& retFlag);
+		void UpdateCache(const std::filesystem::path& filePath, SIE::ShaderCache& cache, bool& clearCache, bool& retFlag);
 		void processQueue();
 		void handleFileAction(efsw::WatchID, const std::string& dir, const std::string& filename, efsw::Action action, std::string) override;
 

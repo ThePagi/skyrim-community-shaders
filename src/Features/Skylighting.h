@@ -1,5 +1,10 @@
 #pragma once
 
+#include "Buffer.h"
+#include "Feature.h"
+#include "State.h"
+#include "Util.h"
+
 struct Skylighting : Feature
 {
 	static Skylighting* GetSingleton()
@@ -29,14 +34,17 @@ struct Skylighting : Feature
 
 	virtual void PostPostLoad() override;
 
+	ID3D11PixelShader* GetFoliagePS();
+	void SkylightingShaderHacks();  // referenced in State.cpp
+
 	//////////////////////////////////////////////////////////////////////////////////
 
 	struct Settings
 	{
 		float MaxZenith = 3.1415926f / 4.f;  // 45 deg
-		float MinDiffuseVisibility = 0.2f;
-		float MinSpecularVisibility = 0.1f;
-		float SSGIAmbientDimmer = 1.0f;
+		float MinDiffuseVisibility = 0.1f;
+		float MinSpecularVisibility = 0.f;
+		uint pad0;
 	} settings;
 
 	struct SkylightingCB
@@ -53,32 +61,32 @@ struct Skylighting : Feature
 		float MinDiffuseVisibility;
 		float MinSpecularVisibility;
 		uint _pad2[2];
-	};
+	} cbData;
 	static_assert(sizeof(SkylightingCB) % 16 == 0);
+	eastl::unique_ptr<ConstantBuffer> skylightingCB = nullptr;
 
-	SkylightingCB GetCommonBufferData(bool a_inWorld);
-
-	winrt::com_ptr<ID3D11SamplerState> comparisonSampler = nullptr;
+	winrt::com_ptr<ID3D11SamplerState> pointClampSampler = nullptr;
 
 	Texture2D* texOcclusion = nullptr;
 	Texture3D* texProbeArray = nullptr;
 	Texture3D* texAccumFramesArray = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> probeUpdateCompute = nullptr;
-	winrt::com_ptr<ID3D11ShaderResourceView> stbn_vec3_2Dx1D_128x128x64;
+
+	ID3D11PixelShader* foliagePixelShader = nullptr;
 
 	// misc parameters
-	uint probeArrayDims[3] = { 256, 256, 128 };
-	float occlusionDistance = 4096.f * 2.5f;  // 5 ugrids
+	bool doOcclusion = true;
+	uint probeArrayDims[3] = { 128, 128, 64 };
+	float occlusionDistance = 10000.f;
 
 	// cached variables
-	bool queuedResetSkylighting = true;
 	bool inOcclusion = false;
+	bool foliage = false;
 	REX::W32::XMFLOAT4X4 OcclusionTransform;
 	float4 OcclusionDir;
+	uint forceFrames = 255 * 4;
 	uint frameCount = 0;
-
-	void ResetSkylighting();
 
 	std::chrono::time_point<std::chrono::system_clock> lastUpdateTimer = std::chrono::system_clock::now();
 
@@ -91,27 +99,21 @@ struct Skylighting : Feature
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
-	void RenderOcclusion();
-
 	struct Main_Precipitation_RenderOcclusion
 	{
-		static void thunk()
-		{
-			GetSingleton()->RenderOcclusion();
-		}
+		static void thunk();
+		static inline REL::Relocation<decltype(thunk)> func;
+	};
 
+	struct BSUtilityShader_SetupGeometry
+	{
+		static void thunk(RE::BSShader* This, RE::BSRenderPass* Pass, uint32_t RenderFlags);
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
 	struct SetViewFrustum
 	{
 		static void thunk(RE::NiCamera* a_camera, RE::NiFrustum* a_frustum);
-		static inline REL::Relocation<decltype(thunk)> func;
-	};
-
-	struct SetViewFrustumVR
-	{
-		static void thunk(RE::NiCamera* a_camera, RE::NiFrustum* a_frustum, uint a_eyeIndex);
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
@@ -124,7 +126,7 @@ struct Skylighting : Feature
 			// When entering a new cell through a loadscreen, update every frame until completion
 			if (a_event->menuName == RE::LoadingMenu::MENU_NAME) {
 				if (!a_event->opening)
-					GetSingleton()->queuedResetSkylighting = true;
+					Skylighting::GetSingleton()->forceFrames = 255 * 4;
 			}
 
 			return RE::BSEventNotifyControl::kContinue;
@@ -133,7 +135,7 @@ struct Skylighting : Feature
 		static bool Register()
 		{
 			static MenuOpenCloseEventHandler singleton;
-			auto ui = globals::game::ui;
+			auto ui = RE::UI::GetSingleton();
 
 			if (!ui) {
 				logger::error("UI event source not found");

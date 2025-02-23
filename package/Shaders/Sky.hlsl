@@ -1,3 +1,4 @@
+#include "Common/Constants.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
 
@@ -73,7 +74,7 @@ cbuffer PerGeometry : register(b2)
 VS_OUTPUT main(VS_INPUT input)
 {
 	VS_OUTPUT vsout;
-	uint eyeIndex = Stereo::GetEyeIndexVS(
+	uint eyeIndex = GetEyeIndexVS(
 #	if defined(VR)
 		input.InstanceID
 #	endif
@@ -138,7 +139,7 @@ VS_OUTPUT main(VS_INPUT input)
 
 #	ifdef VR
 	vsout.EyeIndex = eyeIndex;
-	Stereo::VR_OUTPUT VRout = Stereo::GetVRVSOutput(vsout.Position, eyeIndex);
+	VR_OUTPUT VRout = GetVRVSOutput(vsout.Position, eyeIndex);
 	vsout.Position = VRout.VRPosition;
 	vsout.ClipDistance.x = VRout.ClipDistance;
 	vsout.CullDistance.x = VRout.CullDistance;
@@ -186,8 +187,6 @@ cbuffer AlphaTestRefCB : register(b11)
 #	if defined(CLOUD_SHADOWS)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
-
-Texture2D<float> TexDepthSampler : register(t17);
 
 PS_OUTPUT main(PS_INPUT input)
 {
@@ -242,18 +241,13 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
 
-	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
+	float2 screenMotionVector = GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
 
 	psout.MotionVectors = float4(screenMotionVector, 0, psout.Color.w);
 	psout.Normal = float4(0.5, 0.5, 0, psout.Color.w);
 
 #	if defined(CLOUD_SHADOWS) && defined(CLOUDS) && !defined(DEFERRED)
-	psout.CloudShadows = float4(1, 1, 1, psout.Color.w);
-
-	float depth = TexDepthSampler.Load(int3(input.Position.xy, 0));
-	if (depth < input.Position.z)
-		psout.Color.w = 0;
-
+	psout.CloudShadows = psout.Color;
 #	endif
 
 	return psout;

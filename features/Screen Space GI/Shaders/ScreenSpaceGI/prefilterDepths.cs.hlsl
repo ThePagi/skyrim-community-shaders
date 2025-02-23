@@ -13,7 +13,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "ScreenSpaceGI/common.hlsli"
+#include "common.hlsli"
 
 Texture2D<float> srcNDCDepth : register(t0);
 
@@ -27,19 +27,33 @@ RWTexture2D<float> outDepth4 : register(u4);
 // is required to be non-linear (i.e. very large outdoors environments).
 float ClampDepth(float depth)
 {
-	depth = ScreenToViewDepth(depth);
+#ifdef USE_HALF_FLOAT_PRECISION
+	return clamp(depth, 0.0h, 65504.0h);
+#else
 	return clamp(depth, 0.0, 3.402823466e+38);
+#endif
 }
 
+// weighted average depth filter
 float DepthMIPFilter(float depth0, float depth1, float depth2, float depth3)
 {
-#ifdef LINEAR_FILTER
-	return (depth0 + depth1 + depth2 + depth3) * 0.25;
-#elif defined(MAX_FILTER)
-	return max(max(depth0, depth1), max(depth2, depth3));
-#elif defined(MIN_FILTER)
-	return min(min(depth0, depth1), min(depth2, depth3));
-#endif
+	float maxDepth = max(max(depth0, depth1), max(depth2, depth3));
+
+	const float depthRangeScaleFactor = 0.75;  // found empirically :)
+	const float effectRadius = depthRangeScaleFactor * EffectRadius;
+	const float falloffRange = EffectFalloffRange * effectRadius;
+	const float rcpFalloffRange = rcp(falloffRange);
+	const float falloffFrom = EffectRadius * (1 - EffectFalloffRange);
+	const float falloffMul = -rcpFalloffRange;
+	const float falloffAdd = falloffFrom * rcpFalloffRange + 1.0;
+
+	float weight0 = saturate((maxDepth - depth0) * falloffMul + falloffAdd);
+	float weight1 = saturate((maxDepth - depth1) * falloffMul + falloffAdd);
+	float weight2 = saturate((maxDepth - depth2) * falloffMul + falloffAdd);
+	float weight3 = saturate((maxDepth - depth3) * falloffMul + falloffAdd);
+
+	float weightSum = weight0 + weight1 + weight2 + weight3;
+	return (weight0 * depth0 + weight1 * depth1 + weight2 * depth2 + weight3 * depth3) / weightSum;
 }
 
 groupshared float g_scratchDepths[8][8];
@@ -54,10 +68,10 @@ groupshared float g_scratchDepths[8][8];
 	const float2 uv = (pixCoord + .5) * RcpFrameDim;
 
 	float4 depths4 = srcNDCDepth.GatherRed(samplerPointClamp, uv * frameScale);
-	float depth0 = ClampDepth(depths4.w);
-	float depth1 = ClampDepth(depths4.z);
-	float depth2 = ClampDepth(depths4.x);
-	float depth3 = ClampDepth(depths4.y);
+	float depth0 = ClampDepth(ScreenToViewDepth(depths4.w));
+	float depth1 = ClampDepth(ScreenToViewDepth(depths4.z));
+	float depth2 = ClampDepth(ScreenToViewDepth(depths4.x));
+	float depth3 = ClampDepth(ScreenToViewDepth(depths4.y));
 	outDepth0[pixCoord + uint2(0, 0)] = depth0;
 	outDepth0[pixCoord + uint2(1, 0)] = depth1;
 	outDepth0[pixCoord + uint2(0, 1)] = depth2;

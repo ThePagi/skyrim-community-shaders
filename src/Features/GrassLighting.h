@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Feature.h"
+
 struct GrassLighting : Feature
 {
 	static GrassLighting* GetSingleton()
@@ -17,7 +19,7 @@ struct GrassLighting : Feature
 	{
 		float Glossiness = 20.0f;
 		float SpecularStrength = 0.5f;
-		float SubsurfaceScatteringAmount = 0.5f;
+		float SubsurfaceScatteringAmount = 1.0f;
 		uint OverrideComplexGrassSettings = false;
 		float BasicGrassBrightness = 1.0f;
 		uint pad[3];

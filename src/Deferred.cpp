@@ -3,6 +3,7 @@
 #include "ShaderCache.h"
 #include "State.h"
 #include "TruePBR.h"
+#include "Util.h"
 
 #include "Features/DynamicCubemaps.h"
 #include "Features/ScreenSpaceGI.h"
@@ -24,14 +25,26 @@ struct BlendStates
 		static auto blendStates = reinterpret_cast<BlendStates*>(REL::RelocationID(524749, 411364).address());
 		return blendStates;
 	}
+
+	static std::array<ID3D11BlendState**, 6> GetBlendStates()
+	{
+		auto blendStates = GetSingleton();
+		return {
+			&blendStates->a[0][0][1][0],
+			&blendStates->a[0][0][10][0],
+			&blendStates->a[1][0][1][0],
+			&blendStates->a[1][0][11][0],
+			&blendStates->a[2][0][1][0],
+			&blendStates->a[3][0][11][0]
+		};
+	}
 };
 
-void SetupRenderTarget(RE::RENDER_TARGET target, D3D11_TEXTURE2D_DESC texDesc, D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc, D3D11_RENDER_TARGET_VIEW_DESC rtvDesc, D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc, DXGI_FORMAT format, uint bindFlags)
+void SetupRenderTarget(RE::RENDER_TARGET target, D3D11_TEXTURE2D_DESC texDesc, D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc, D3D11_RENDER_TARGET_VIEW_DESC rtvDesc, D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc, DXGI_FORMAT format)
 {
-	auto renderer = globals::game::renderer;
-	auto device = globals::d3d::device;
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
+	auto& device = State::GetSingleton()->device;
 
-	texDesc.BindFlags = bindFlags;
 	texDesc.Format = format;
 	srvDesc.Format = format;
 	rtvDesc.Format = format;
@@ -39,20 +52,14 @@ void SetupRenderTarget(RE::RENDER_TARGET target, D3D11_TEXTURE2D_DESC texDesc, D
 
 	auto& data = renderer->GetRuntimeData().renderTargets[target];
 	DX::ThrowIfFailed(device->CreateTexture2D(&texDesc, nullptr, &data.texture));
-
-	if (texDesc.BindFlags & D3D11_BIND_SHADER_RESOURCE)
-		DX::ThrowIfFailed(device->CreateShaderResourceView(data.texture, &srvDesc, &data.SRV));
-
-	if (texDesc.BindFlags & D3D11_BIND_RENDER_TARGET)
-		DX::ThrowIfFailed(device->CreateRenderTargetView(data.texture, &rtvDesc, &data.RTV));
-
-	if (texDesc.BindFlags & D3D11_BIND_UNORDERED_ACCESS)
-		DX::ThrowIfFailed(device->CreateUnorderedAccessView(data.texture, &uavDesc, &data.UAV));
+	DX::ThrowIfFailed(device->CreateShaderResourceView(data.texture, &srvDesc, &data.SRV));
+	DX::ThrowIfFailed(device->CreateRenderTargetView(data.texture, &rtvDesc, &data.RTV));
+	DX::ThrowIfFailed(device->CreateUnorderedAccessView(data.texture, &uavDesc, &data.UAV));
 }
 
 void Deferred::SetupResources()
 {
-	auto renderer = globals::game::renderer;
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 
 	{
 		auto& main = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
@@ -92,19 +99,25 @@ void Deferred::SetupResources()
 		// TEMPORAL_AA_WATER_2
 
 		// Albedo
-		SetupRenderTarget(ALBEDO, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+		SetupRenderTarget(ALBEDO, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM);
 		// Specular
-		SetupRenderTarget(SPECULAR, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R11G11B10_FLOAT, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+		SetupRenderTarget(SPECULAR, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R11G11B10_FLOAT);
 		// Reflectance
-		SetupRenderTarget(REFLECTANCE, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+		SetupRenderTarget(REFLECTANCE, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM);
 		// Normal + Roughness
-		SetupRenderTarget(NORMALROUGHNESS, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R10G10B10A2_UNORM, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+		SetupRenderTarget(NORMALROUGHNESS, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM);
 		// Masks
-		SetupRenderTarget(MASKS, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+		SetupRenderTarget(MASKS, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM);
+		// Additional Masks
+		SetupRenderTarget(MASKS2, texDesc, srvDesc, rtvDesc, uavDesc, DXGI_FORMAT_R8G8B8A8_UNORM);
 	}
 
 	{
-		auto device = globals::d3d::device;
+		deferredCB = new ConstantBuffer(ConstantBufferDesc<DeferredCB>());
+	}
+
+	{
+		auto& device = State::GetSingleton()->device;
 
 		D3D11_SAMPLER_DESC samplerDesc = {};
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -145,7 +158,7 @@ void Deferred::SetupResources()
 		uavDesc.Buffer.NumElements = numElements;
 		perShadow->CreateUAV(uavDesc);
 
-		copyShadowCS = static_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\CopyShadowDataCS.hlsl", {}, "cs_5_0"));
+		copyShadowCS = static_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\ShadowTest\\CopyShadowData.hlsl", {}, "cs_5_0"));
 	}
 
 	{
@@ -178,9 +191,9 @@ void Deferred::SetupResources()
 void Deferred::CopyShadowData()
 {
 	ZoneScoped;
-	TracyD3D11Zone(globals::state->tracyCtx, "CopyShadowData");
+	TracyD3D11Zone(State::GetSingleton()->tracyCtx, "CopyShadowData");
 
-	auto context = globals::d3d::context;
+	auto& context = State::GetSingleton()->context;
 
 	ID3D11UnorderedAccessView* uavs[1]{ perShadow->uav.get() };
 	context->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
@@ -211,74 +224,55 @@ void Deferred::CopyShadowData()
 			perShadow->srv.get(),
 		};
 
-		context->PSSetShaderResources(18, ARRAYSIZE(srvs), srvs);
+		context->PSSetShaderResources(25, ARRAYSIZE(srvs), srvs);
 	}
 }
 
-void Deferred::ReflectionsPrepasses()
+void Deferred::UpdateConstantBuffer()
 {
-	auto shaderCache = globals::shaderCache;
+	DeferredCB data{};
 
-	if (!shaderCache->IsEnabled())
-		return;
+	auto state = State::GetSingleton();
 
-	globals::state->UpdateSharedData(false, false);
+	data.BufferDim.x = state->screenSize.x;
+	data.BufferDim.y = state->screenSize.y;
+	data.BufferDim.z = 1.0f / data.BufferDim.x;
+	data.BufferDim.w = 1.0f / data.BufferDim.y;
 
-	ZoneScoped;
-	TracyD3D11Zone(globals::game::graphicsState->tracyCtx, "Early Prepass");
+	data.CameraData = Util::GetCameraData();
 
-	auto context = globals::d3d::context;
-	context->OMSetRenderTargets(0, nullptr, nullptr);  // Unbind all bound render targets
+	const auto& shaderManager = RE::BSShaderManager::State::GetSingleton();
+	const RE::NiTransform& dalcTransform = shaderManager.directionalAmbientTransform;
+	Util::StoreTransform3x4NoScale(data.DirectionalAmbient, dalcTransform);
 
-	globals::game::stateUpdateFlags->set(RE::BSGraphics::ShaderFlags::DIRTY_RENDERTARGET);  // Run OMSetRenderTargets again
+	auto imageSpaceManager = RE::ImageSpaceManager::GetSingleton();
 
-	for (auto* feature : Feature::GetFeatureList()) {
-		if (feature->loaded) {
-			feature->ReflectionsPrepass();
-		}
-	}
-}
+	auto useTAA = !REL::Module::IsVR() ? imageSpaceManager->GetRuntimeData().BSImagespaceShaderISTemporalAA->taaEnabled : imageSpaceManager->GetVRRuntimeData().BSImagespaceShaderISTemporalAA->taaEnabled;
+	data.FrameCount = useTAA ? RE::BSGraphics::State::GetSingleton()->frameCount : 0;
+	data.FrameCountAlwaysActive = RE::BSGraphics::State::GetSingleton()->frameCount;
 
-void Deferred::EarlyPrepasses()
-{
-	auto shaderCache = globals::shaderCache;
-
-	if (!shaderCache->IsEnabled())
-		return;
-
-	globals::state->UpdateSharedData(false, true);
-
-	ZoneScoped;
-	TracyD3D11Zone(globals::game::graphicsState->tracyCtx, "Early Prepass");
-
-	auto context = globals::d3d::context;
-	context->OMSetRenderTargets(0, nullptr, nullptr);  // Unbind all bound render targets
-
-	globals::game::stateUpdateFlags->set(RE::BSGraphics::ShaderFlags::DIRTY_RENDERTARGET);  // Run OMSetRenderTargets again
-
-	for (auto* feature : Feature::GetFeatureList()) {
-		if (feature->loaded) {
-			feature->EarlyPrepass();
-		}
-	}
+	deferredCB->Update(data);
 }
 
 void Deferred::PrepassPasses()
 {
 	ZoneScoped;
-	TracyD3D11Zone(globals::state->tracyCtx, "Prepass");
+	TracyD3D11Zone(State::GetSingleton()->tracyCtx, "Prepass");
 
-	auto shaderCache = globals::shaderCache;
+	auto& shaderCache = SIE::ShaderCache::Instance();
 
-	if (!shaderCache->IsEnabled())
+	if (!shaderCache.IsEnabled())
 		return;
 
-	auto context = globals::game::renderer->GetRuntimeData().context;
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 	context->OMSetRenderTargets(0, nullptr, nullptr);  // Unbind all bound render targets
 
-	globals::game::stateUpdateFlags->set(RE::BSGraphics::ShaderFlags::DIRTY_RENDERTARGET);  // Run OMSetRenderTargets again
+	auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+	GET_INSTANCE_MEMBER(stateUpdateFlags, shadowState)
 
-	globals::truePBR->PrePass();
+	stateUpdateFlags.set(RE::BSGraphics::ShaderFlags::DIRTY_RENDERTARGET);  // Run OMSetRenderTargets again
+
+	TruePBR::GetSingleton()->PrePass();
 	for (auto* feature : Feature::GetFeatureList()) {
 		if (feature->loaded) {
 			feature->Prepass();
@@ -288,9 +282,35 @@ void Deferred::PrepassPasses()
 
 void Deferred::StartDeferred()
 {
-	globals::state->UpdateSharedData(true, false);
+	if (!inWorld)
+		return;
 
-	auto shadowState = globals::game::shadowState;
+	auto& shaderCache = SIE::ShaderCache::Instance();
+
+	if (!shaderCache.IsEnabled())
+		return;
+
+	State::GetSingleton()->UpdateSharedData();
+
+	static std::once_flag setup;
+	std::call_once(setup, [&]() {
+		auto& device = State::GetSingleton()->device;
+
+		auto blendStates = BlendStates::GetBlendStates();
+
+		for (int i = 0; i < blendStates.size(); ++i) {
+			forwardBlendStates[i] = *blendStates[i];
+
+			D3D11_BLEND_DESC blendDesc;
+			forwardBlendStates[i]->GetDesc(&blendDesc);
+
+			blendDesc.IndependentBlendEnable = false;
+
+			DX::ThrowIfFailed(device->CreateBlendState(&blendDesc, &deferredBlendStates[i]));
+		}
+	});
+
+	auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
 	GET_INSTANCE_MEMBER(renderTargets, shadowState)
 	GET_INSTANCE_MEMBER(setRenderTargetMode, shadowState)
 	GET_INSTANCE_MEMBER(stateUpdateFlags, shadowState)
@@ -308,7 +328,7 @@ void Deferred::StartDeferred()
 		SPECULAR,
 		REFLECTANCE,
 		MASKS,
-		RE::RENDER_TARGET::kNONE
+		MASKS2
 	};
 
 	for (uint i = 2; i < 8; i++) {
@@ -321,95 +341,74 @@ void Deferred::StartDeferred()
 	deferredPass = true;
 
 	{
-		auto context = globals::d3d::context;
+		auto& context = State::GetSingleton()->context;
 
 		static REL::Relocation<ID3D11Buffer**> perFrame{ REL::RelocationID(524768, 411384) };
 		ID3D11Buffer* buffers[1] = { *perFrame.get() };
 
-		ID3D11Buffer* vrBuffer = nullptr;
-
-		if (REL::Module::IsVR()) {
-			static REL::Relocation<ID3D11Buffer**> VRValues{ REL::Offset(0x3180688) };
-			vrBuffer = *VRValues.get();
-		}
-		if (vrBuffer) {
-			context->CSSetConstantBuffers(12, 1, buffers);
-			context->CSSetConstantBuffers(13, 1, &vrBuffer);
-		} else {
-			context->CSSetConstantBuffers(12, 1, buffers);
-		}
+		context->CSSetConstantBuffers(12, 1, buffers);
 	}
 
 	PrepassPasses();
-
-	OverrideBlendStates();
 }
 
 void Deferred::DeferredPasses()
 {
 	ZoneScoped;
-	TracyD3D11Zone(globals::state->tracyCtx, "Deferred");
+	TracyD3D11Zone(State::GetSingleton()->tracyCtx, "Deferred");
 
-	auto renderer = globals::game::renderer;
-	auto context = globals::d3d::context;
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
+	auto& context = State::GetSingleton()->context;
+
+	UpdateConstantBuffer();
 
 	{
 		static REL::Relocation<ID3D11Buffer**> perFrame{ REL::RelocationID(524768, 411384) };
-		ID3D11Buffer* buffers[1] = { *perFrame.get() };
-		ID3D11Buffer* vrBuffer = nullptr;
+		ID3D11Buffer* buffers[2] = { deferredCB->CB(), *perFrame.get() };
 
-		if (REL::Module::IsVR()) {
-			static REL::Relocation<ID3D11Buffer**> VRValues{ REL::Offset(0x3180688) };
-			vrBuffer = *VRValues.get();
-		}
-		if (vrBuffer) {
-			context->CSSetConstantBuffers(12, 1, buffers);
-			context->CSSetConstantBuffers(13, 1, &vrBuffer);
-		} else {
-			context->CSSetConstantBuffers(12, 1, buffers);
-		}
+		context->CSSetConstantBuffers(11, 2, buffers);
 	}
 
 	auto specular = renderer->GetRuntimeData().renderTargets[SPECULAR];
 	auto albedo = renderer->GetRuntimeData().renderTargets[ALBEDO];
 	auto normalRoughness = renderer->GetRuntimeData().renderTargets[NORMALROUGHNESS];
 	auto masks = renderer->GetRuntimeData().renderTargets[MASKS];
+	auto masks2 = renderer->GetRuntimeData().renderTargets[MASKS2];
 
 	auto main = renderer->GetRuntimeData().renderTargets[forwardRenderTargets[0]];
 	auto normals = renderer->GetRuntimeData().renderTargets[forwardRenderTargets[2]];
+	auto snow = renderer->GetRuntimeData().renderTargets[forwardRenderTargets[3]];
+
 	auto depth = renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY];
 	auto reflectance = renderer->GetRuntimeData().renderTargets[REFLECTANCE];
 
-	auto motionVectors = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMOTION_VECTOR];
-
 	bool interior = true;
-	if (auto sky = globals::game::sky)
+	if (auto sky = RE::Sky::GetSingleton())
 		interior = sky->mode.get() != RE::Sky::Mode::kFull;
 
-	auto skylighting = globals::features::skylighting;
+	auto skylighting = Skylighting::GetSingleton();
 
-	auto ssgi = globals::features::screenSpaceGI;
-	if (ssgi->loaded)
-		ssgi->DrawSSGI(prevDiffuseAmbientTexture);
-	auto [ssgi_ao, ssgi_y, ssgi_cocg, ssgi_gi_spec] = ssgi->GetOutputTextures();
-	bool ssgi_hq_spec = ssgi->settings.EnableExperimentalSpecularGI;
+	auto ssgi = ScreenSpaceGI::GetSingleton();
 
 	auto dispatchCount = Util::GetScreenDispatchCount();
 
 	if (ssgi->loaded) {
+		ssgi->DrawSSGI(prevDiffuseAmbientTexture);
+
 		// Ambient Composite
 		{
-			TracyD3D11Zone(globals::state->tracyCtx, "Ambient Composite");
+			TracyD3D11Zone(State::GetSingleton()->tracyCtx, "Ambient Composite");
 
-			ID3D11ShaderResourceView* srvs[8]{
+			ID3D11Buffer* buffer = skylighting->loaded ? skylighting->skylightingCB->CB() : nullptr;
+			context->CSSetConstantBuffers(1, 1, &buffer);
+
+			ID3D11ShaderResourceView* srvs[6]{
 				albedo.SRV,
 				normalRoughness.SRV,
-				skylighting->loaded || REL::Module::IsVR() ? depth.depthSRV : nullptr,
+				skylighting->loaded ? depth.depthSRV : nullptr,
 				skylighting->loaded ? skylighting->texProbeArray->srv.get() : nullptr,
-				skylighting->loaded ? skylighting->stbn_vec3_2Dx1D_128x128x64.get() : nullptr,
-				ssgi_ao,
-				ssgi_y,
-				ssgi_cocg,
+				ssgi->settings.Enabled ? ssgi->texGI[ssgi->outputGIIdx]->srv.get() : nullptr,
+				masks2.SRV,
 			};
 
 			context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
@@ -425,45 +424,50 @@ void Deferred::DeferredPasses()
 
 		// Clear
 		{
-			ID3D11ShaderResourceView* views[8]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+			ID3D11ShaderResourceView* views[6]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 			context->CSSetShaderResources(0, ARRAYSIZE(views), views);
 
 			ID3D11UnorderedAccessView* uavs[2]{ nullptr, nullptr };
 			context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 
+			ID3D11Buffer* buffer = nullptr;
+			context->CSSetConstantBuffers(0, 1, &buffer);
+
 			context->CSSetShader(nullptr, nullptr, 0);
 		}
 	}
 
-	auto sss = globals::features::subsurfaceScattering;
+	auto sss = SubsurfaceScattering::GetSingleton();
 	if (sss->loaded)
 		sss->DrawSSS();
 
-	auto dynamicCubemaps = globals::features::dynamicCubemaps;
+	auto dynamicCubemaps = DynamicCubemaps::GetSingleton();
 	if (dynamicCubemaps->loaded)
 		dynamicCubemaps->UpdateCubemap();
 
-	auto terrainBlending = globals::features::terrainBlending;
+	auto terrainBlending = TerrainBlending::GetSingleton();
 
 	// Deferred Composite
 	{
-		TracyD3D11Zone(globals::state->tracyCtx, "Deferred Composite");
+		TracyD3D11Zone(State::GetSingleton()->tracyCtx, "Deferred Composite");
 
-		ID3D11ShaderResourceView* srvs[14]{
+		ID3D11Buffer* buffer = skylighting->loaded ? skylighting->skylightingCB->CB() : nullptr;
+		context->CSSetConstantBuffers(1, 1, &buffer);
+
+		bool doSSGISpecular = ssgi->loaded && ssgi->settings.Enabled && ssgi->settings.EnableGI && ssgi->settings.EnableSpecularGI;
+
+		ID3D11ShaderResourceView* srvs[11]{
 			specular.SRV,
 			albedo.SRV,
 			normalRoughness.SRV,
 			masks.SRV,
-			dynamicCubemaps->loaded || REL::Module::IsVR() ? (terrainBlending->loaded ? terrainBlending->blendedDepthTexture16->srv.get() : depth.depthSRV) : nullptr,
+			masks2.SRV,
+			dynamicCubemaps->loaded ? (terrainBlending->loaded ? terrainBlending->blendedDepthTexture16->srv.get() : depth.depthSRV) : nullptr,
 			dynamicCubemaps->loaded ? reflectance.SRV : nullptr,
 			dynamicCubemaps->loaded ? dynamicCubemaps->envTexture->srv.get() : nullptr,
 			dynamicCubemaps->loaded ? dynamicCubemaps->envReflectionsTexture->srv.get() : nullptr,
 			dynamicCubemaps->loaded && skylighting->loaded ? skylighting->texProbeArray->srv.get() : nullptr,
-			dynamicCubemaps->loaded && skylighting->loaded ? skylighting->stbn_vec3_2Dx1D_128x128x64.get() : nullptr,
-			ssgi_ao,
-			ssgi_hq_spec ? nullptr : ssgi_y,
-			ssgi_hq_spec ? nullptr : ssgi_cocg,
-			ssgi_hq_spec ? ssgi_gi_spec : nullptr,
+			doSSGISpecular ? ssgi->texGISpecular[ssgi->outputGIIdx]->srv.get() : nullptr,
 		};
 
 		if (dynamicCubemaps->loaded)
@@ -471,25 +475,28 @@ void Deferred::DeferredPasses()
 
 		context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
 
-		ID3D11UnorderedAccessView* uavs[3]{ main.UAV, normals.UAV, motionVectors.UAV };
+		ID3D11UnorderedAccessView* uavs[3]{ main.UAV, normals.UAV, snow.UAV };
 		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 
 		auto shader = interior ? GetComputeMainCompositeInterior() : GetComputeMainComposite();
 		context->CSSetShader(shader, nullptr, 0);
 
 		context->Dispatch(dispatchCount.x, dispatchCount.y, 1);
+
+		buffer = nullptr;
+		context->CSSetConstantBuffers(0, 1, &buffer);
 	}
 
 	// Clear
 	{
-		ID3D11ShaderResourceView* views[14]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+		ID3D11ShaderResourceView* views[10]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 		context->CSSetShaderResources(0, ARRAYSIZE(views), views);
 
 		ID3D11UnorderedAccessView* uavs[3]{ nullptr, nullptr, nullptr };
 		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 
-		ID3D11Buffer* buffers[1] = { nullptr };
-		context->CSSetConstantBuffers(12, 1, buffers);
+		ID3D11Buffer* buffer = nullptr;
+		context->CSSetConstantBuffers(0, 1, &buffer);
 
 		context->CSSetShader(nullptr, nullptr, 0);
 	}
@@ -503,12 +510,12 @@ void Deferred::EndDeferred()
 	if (!inWorld)
 		return;
 
-	auto shaderCache = globals::shaderCache;
+	auto& shaderCache = SIE::ShaderCache::Instance();
 
-	if (!shaderCache->IsEnabled())
+	if (!shaderCache.IsEnabled())
 		return;
 
-	auto shadowState = globals::game::shadowState;
+	auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
 	GET_INSTANCE_MEMBER(renderTargets, shadowState)
 	GET_INSTANCE_MEMBER(stateUpdateFlags, shadowState)
 
@@ -521,7 +528,7 @@ void Deferred::EndDeferred()
 		renderTargets[i] = RE::RENDER_TARGET::kNONE;
 	}
 
-	auto context = globals::d3d::context;
+	auto& context = State::GetSingleton()->context;
 	context->OMSetRenderTargets(0, nullptr, nullptr);  // Unbind all bound render targets
 
 	DeferredPasses();  // Perform deferred passes and composite forward buffers
@@ -529,82 +536,50 @@ void Deferred::EndDeferred()
 	stateUpdateFlags.set(RE::BSGraphics::ShaderFlags::DIRTY_RENDERTARGET);  // Run OMSetRenderTargets again
 
 	deferredPass = false;
-
-	ResetBlendStates();
 }
 
 void Deferred::OverrideBlendStates()
 {
-	auto blendStates = BlendStates::GetSingleton();
+	auto blendStates = BlendStates::GetBlendStates();
 
 	static std::once_flag setup;
 	std::call_once(setup, [&]() {
-		auto device = globals::d3d::device;
+		auto& device = State::GetSingleton()->device;
 
-		for (int a = 0; a < 7; a++) {
-			for (int b = 0; b < 2; b++) {
-				for (int c = 0; c < 13; c++) {
-					for (int d = 0; d < 2; d++) {
-						forwardBlendStates[a][b][c][d] = blendStates->a[a][b][c][d];
+		for (int i = 0; i < blendStates.size(); ++i) {
+			forwardBlendStates[i] = *blendStates[i];
 
-						if (auto blendState = forwardBlendStates[a][b][c][d]) {
-							D3D11_BLEND_DESC blendDesc;
-							forwardBlendStates[a][b][c][d]->GetDesc(&blendDesc);
+			D3D11_BLEND_DESC blendDesc;
+			forwardBlendStates[i]->GetDesc(&blendDesc);
 
-							blendDesc.IndependentBlendEnable = true;
+			blendDesc.IndependentBlendEnable = false;
 
-							// Start at 1 to ignore Diffuse
-							for (int i = 1; i < 8; i++) {
-								blendDesc.RenderTarget[i].BlendEnable = blendDesc.RenderTarget[0].BlendEnable;
-								blendDesc.RenderTarget[i].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-								blendDesc.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-								blendDesc.RenderTarget[i].BlendOp = D3D11_BLEND_OP_ADD;
-								blendDesc.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-								blendDesc.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-								blendDesc.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-								blendDesc.RenderTarget[i].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-							}
-
-							DX::ThrowIfFailed(device->CreateBlendState(&blendDesc, &deferredBlendStates[a][b][c][d]));
-						} else {
-							deferredBlendStates[a][b][c][d] = nullptr;
-						}
-					}
-				}
-			}
+			DX::ThrowIfFailed(device->CreateBlendState(&blendDesc, &deferredBlendStates[i]));
 		}
 	});
 
 	// Set modified blend states
-	for (int a = 0; a < 7; a++) {
-		for (int b = 0; b < 2; b++) {
-			for (int c = 0; c < 13; c++) {
-				for (int d = 0; d < 2; d++) {
-					blendStates->a[a][b][c][d] = deferredBlendStates[a][b][c][d];
-				}
-			}
-		}
-	}
+	for (int i = 0; i < blendStates.size(); ++i)
+		*blendStates[i] = deferredBlendStates[i];
 
-	globals::game::stateUpdateFlags->set(RE::BSGraphics::ShaderFlags::DIRTY_ALPHA_BLEND);
+	auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+	GET_INSTANCE_MEMBER(stateUpdateFlags, shadowState)
+
+	stateUpdateFlags.set(RE::BSGraphics::ShaderFlags::DIRTY_ALPHA_BLEND);
 }
 
 void Deferred::ResetBlendStates()
 {
-	auto blendStates = BlendStates::GetSingleton();
+	auto blendStates = BlendStates::GetBlendStates();
 
 	// Restore modified blend states
-	for (int a = 0; a < 7; a++) {
-		for (int b = 0; b < 2; b++) {
-			for (int c = 0; c < 13; c++) {
-				for (int d = 0; d < 2; d++) {
-					blendStates->a[a][b][c][d] = forwardBlendStates[a][b][c][d];
-				}
-			}
-		}
-	}
+	for (int i = 0; i < blendStates.size(); ++i)
+		*blendStates[i] = forwardBlendStates[i];
 
-	globals::game::stateUpdateFlags->set(RE::BSGraphics::ShaderFlags::DIRTY_ALPHA_BLEND);
+	auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+	GET_INSTANCE_MEMBER(stateUpdateFlags, shadowState)
+
+	stateUpdateFlags.set(RE::BSGraphics::ShaderFlags::DIRTY_ALPHA_BLEND);
 }
 
 void Deferred::ClearShaderCache()
@@ -634,14 +609,11 @@ ID3D11ComputeShader* Deferred::GetComputeAmbientComposite()
 
 		std::vector<std::pair<const char*, const char*>> defines;
 
-		if (globals::features::skylighting->loaded)
+		if (Skylighting::GetSingleton()->loaded)
 			defines.push_back({ "SKYLIGHTING", nullptr });
 
-		if (globals::features::screenSpaceGI->loaded)
+		if (ScreenSpaceGI::GetSingleton()->loaded)
 			defines.push_back({ "SSGI", nullptr });
-
-		if (REL::Module::IsVR())
-			defines.push_back({ "FRAMEBUFFER", nullptr });
 
 		ambientCompositeCS = static_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\AmbientCompositeCS.hlsl", defines, "cs_5_0"));
 	}
@@ -656,11 +628,8 @@ ID3D11ComputeShader* Deferred::GetComputeAmbientCompositeInterior()
 		std::vector<std::pair<const char*, const char*>> defines;
 		defines.push_back({ "INTERIOR", nullptr });
 
-		if (globals::features::screenSpaceGI->loaded)
+		if (ScreenSpaceGI::GetSingleton()->loaded)
 			defines.push_back({ "SSGI", nullptr });
-
-		if (REL::Module::IsVR())
-			defines.push_back({ "FRAMEBUFFER", nullptr });
 
 		ambientCompositeInteriorCS = static_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\AmbientCompositeCS.hlsl", defines, "cs_5_0"));
 	}
@@ -674,17 +643,14 @@ ID3D11ComputeShader* Deferred::GetComputeMainComposite()
 
 		std::vector<std::pair<const char*, const char*>> defines;
 
-		if (globals::features::dynamicCubemaps->loaded)
+		if (DynamicCubemaps::GetSingleton()->loaded)
 			defines.push_back({ "DYNAMIC_CUBEMAPS", nullptr });
 
-		if (globals::features::skylighting->loaded)
+		if (Skylighting::GetSingleton()->loaded)
 			defines.push_back({ "SKYLIGHTING", nullptr });
 
-		if (globals::features::screenSpaceGI->loaded)
+		if (ScreenSpaceGI::GetSingleton()->loaded)
 			defines.push_back({ "SSGI", nullptr });
-
-		if (REL::Module::IsVR())
-			defines.push_back({ "FRAMEBUFFER", nullptr });
 
 		mainCompositeCS = static_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\DeferredCompositeCS.hlsl", defines, "cs_5_0"));
 	}
@@ -699,114 +665,13 @@ ID3D11ComputeShader* Deferred::GetComputeMainCompositeInterior()
 		std::vector<std::pair<const char*, const char*>> defines;
 		defines.push_back({ "INTERIOR", nullptr });
 
-		if (globals::features::dynamicCubemaps->loaded)
+		if (DynamicCubemaps::GetSingleton()->loaded)
 			defines.push_back({ "DYNAMIC_CUBEMAPS", nullptr });
 
-		if (globals::features::screenSpaceGI->loaded)
+		if (ScreenSpaceGI::GetSingleton()->loaded)
 			defines.push_back({ "SSGI", nullptr });
-
-		if (REL::Module::IsVR())
-			defines.push_back({ "FRAMEBUFFER", nullptr });
 
 		mainCompositeInteriorCS = static_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\DeferredCompositeCS.hlsl", defines, "cs_5_0"));
 	}
 	return mainCompositeInteriorCS;
-}
-
-void Deferred::Hooks::Main_RenderShadowMaps::thunk()
-{
-	func();
-	globals::deferred->EarlyPrepasses();
-};
-
-void Deferred::Hooks::Main_RenderWorld::thunk(bool a1)
-{
-	auto deferred = globals::deferred;
-	deferred->inWorld = true;
-	func(a1);
-	deferred->inWorld = false;
-};
-
-void Deferred::Hooks::Main_RenderWorld_Start::thunk(RE::BSBatchRenderer* This, uint32_t StartRange, uint32_t EndRanges, uint32_t RenderFlags, int GeometryGroup)
-{
-	auto deferred = globals::deferred;
-	auto shaderCache = globals::shaderCache;
-
-	if (shaderCache->IsEnabled() && deferred->inWorld) {
-		// Here is where the first opaque objects start rendering
-		deferred->StartDeferred();
-		func(This, StartRange, EndRanges, RenderFlags, GeometryGroup);  // RenderBatches                                                               // RenderBatches
-	} else {
-		func(This, StartRange, EndRanges, RenderFlags, GeometryGroup);  // RenderBatches
-	}
-};
-
-void Deferred::Hooks::Main_RenderWorld_BlendedDecals::thunk(RE::BSShaderAccumulator* This, uint32_t RenderFlags)
-{
-	auto deferred = globals::deferred;
-	auto terrainBlending = globals::features::terrainBlending;
-	auto shaderCache = globals::shaderCache;
-
-	if (shaderCache->IsEnabled() && deferred->inWorld) {
-		// Defer terrain rendering until after everything else
-		if (terrainBlending->loaded)
-			terrainBlending->RenderTerrainBlendingPasses();
-	}
-
-	// Deferred blended decals
-	deferred->inBlendedDecals = true;
-	func(This, RenderFlags);
-	deferred->inBlendedDecals = false;
-
-	deferred->EndDeferred();
-
-	// Blended decals
-	deferred->inDecals = true;
-	func(This, RenderFlags);
-	deferred->inDecals = false;
-
-	// After this point, water starts rendering
-};
-
-void Deferred::Hooks::BSShaderAccumulator_BlendedDecals_RenderGeometryGroup::thunk(RE::BSBatchRenderer* This, uint32_t StartRange, uint32_t EndRanges, uint32_t RenderFlags, int GeometryGroup)
-{
-	auto deferred = globals::deferred;
-
-	if (deferred->inBlendedDecals) {
-		func(This, StartRange, EndRanges, RenderFlags, 12);
-	} else {
-		func(This, StartRange, EndRanges, RenderFlags, GeometryGroup);
-	}
-};
-
-void Deferred::Hooks::BSShaderAccumulator_FirstPerson_BlendedDecals::thunk(RE::BSShaderAccumulator* This, uint32_t RenderFlags)
-{
-	auto deferred = globals::deferred;
-
-	deferred->inBlendedDecals = true;
-	func(This, RenderFlags);
-	deferred->inBlendedDecals = false;
-	func(This, RenderFlags);
-	deferred->inDecals = false;
-};
-
-void Deferred::Hooks::BSShaderAccumulator_ShadowMapOrMask_BlendedDecals::thunk(RE::BSShaderAccumulator* This, uint32_t RenderFlags)
-{
-	auto deferred = globals::deferred;
-
-	deferred->inBlendedDecals = true;
-	func(This, RenderFlags);
-	deferred->inBlendedDecals = false;
-	func(This, RenderFlags);
-	deferred->inDecals = false;
-};
-
-void Deferred::Hooks::BSCubeMapCamera_RenderCubemap::thunk(RE::NiAVObject* camera, int a2, bool a3, bool a4, bool a5)
-{
-	auto deferred = globals::deferred;
-
-	deferred->inReflections = true;
-	deferred->ReflectionsPrepasses();
-	func(camera, a2, a3, a4, a5);
-	deferred->inReflections = false;
 }

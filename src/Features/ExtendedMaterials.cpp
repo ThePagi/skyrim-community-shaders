@@ -1,5 +1,7 @@
 #include "ExtendedMaterials.h"
 
+#include "Util.h"
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	ExtendedMaterials::Settings,
 	EnableComplexMaterial,
@@ -7,13 +9,12 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	EnableTerrain,
 	EnableHeightBlending,
 	EnableShadows,
-	ExtendShadows,
-	EnableParallaxWarpingFix)
+	ExtendShadows)
 
 void ExtendedMaterials::DataLoaded()
 {
 	if (&settings.EnableTerrain) {
-		if (auto bLandSpecular = globals::game::iniSettingCollection->GetSetting("bLandSpecular:Landscape"); bLandSpecular) {
+		if (auto bLandSpecular = RE::INISettingCollection::GetSingleton()->GetSetting("bLandSpecular:Landscape"); bLandSpecular) {
 			if (!bLandSpecular->data.b) {
 				logger::info("[CPM] Changing bLandSpecular from {} to {} to support Terrain Parallax", bLandSpecular->data.b, true);
 				bLandSpecular->data.b = true;
@@ -57,10 +58,6 @@ void ExtendedMaterials::DrawSettings()
 		ImGui::Checkbox("Enable Terrain Height Blending", (bool*)&settings.EnableHeightBlending);
 		if (auto _tt = Util::HoverTooltipWrapper()) {
 			ImGui::Text("Enables landscape texture blending based on parallax. ");
-		}
-		ImGui::Checkbox("Enable Parallax Warping Fix", (bool*)&settings.EnableParallaxWarpingFix);
-		if (auto _tt = Util::HoverTooltipWrapper()) {
-			ImGui::Text("Enables a fix reducing parallax scale on curved and smooth normal triangles.");
 		}
 
 		ImGui::Spacing();

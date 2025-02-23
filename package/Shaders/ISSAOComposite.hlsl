@@ -129,12 +129,13 @@ PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT psout;
 
-	float2 screenPosition = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(input.TexCoord);
+	float2 screenPosition = GetDynamicResolutionAdjustedScreenPosition(input.TexCoord);
 	float ao = SAOTex.Sample(SAOSampler, screenPosition).x;
 	float4 sourceColor = sourceTex.SampleLevel(sourceSampler, screenPosition, 0);
 
 	float4 composedColor = sourceColor;
 
+#	if !defined(VR)
 	if (0.5 < SSRParams.z) {
 		float2 ssrMask = NormalsSSRMaskTex.SampleLevel(NormalsSSRMaskSampler, screenPosition, 0).zw;
 		float4 ssr = SSRSourceTex.Sample(SSRSourceSampler, screenPosition);
@@ -145,6 +146,7 @@ PS_OUTPUT main(PS_INPUT input)
 		}
 		composedColor.xyz += ssrInput;
 	}
+#	endif
 
 	float snowMask = 0;
 #	if !defined(VR)
@@ -159,9 +161,9 @@ PS_OUTPUT main(PS_INPUT input)
 	if (EyePosition.w != 0 && 1e-5 < snowMask) {
 		ao = min(1, SparklesParameters3.x + ao);
 	}
-	composedColor.xyz = Color::GammaToLinear(composedColor.xyz);
-	composedColor.xyz *= pow(ao, 1.5);
-	composedColor.xyz = Color::LinearToGamma(composedColor.xyz);
+	composedColor.xyz = GammaToLinear(composedColor.xyz);
+	composedColor.xyz *= ao;
+	composedColor.xyz = LinearToGamma(composedColor.xyz);
 #	endif
 
 	float depth = depthTex.SampleLevel(depthSampler, screenPosition, 0).x;
@@ -182,9 +184,9 @@ PS_OUTPUT main(PS_INPUT input)
 
 		float4 vsPosition = float4(2 * input.TexCoord.x - 1, 1 - 2 * input.TexCoord.y, depth, 1);
 
-		float4 csPosition = mul(FrameBuffer::CameraViewProjInverse[0], vsPosition);
+		float4 csPosition = mul(CameraViewProjInverse[0], vsPosition);
 		csPosition.xyz /= csPosition.w;
-		csPosition.xyz += FrameBuffer::CameraPosAdjust[0].xyz;
+		csPosition.xyz += CameraPosAdjust[0].xyz;
 
 		float3 noiseSeed = 0.07 * (SparklesParameters2.x * csPosition.xyz);
 		float noiseValue = 0.5 * (SimplexNoise(noiseSeed) + 1);

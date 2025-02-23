@@ -154,7 +154,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	elif defined(HEIGHTMAP_RAIN)
 	psout.Color = GetHeight(input, RainVars);
 #	elif defined(HEIGHTMAP_WADING)
-	psout.Color = GetHeight(input, WadingVars.xyz);
+	psout.Color = GetHeight(input, WadingVars);
 #	endif
 
 	return psout;

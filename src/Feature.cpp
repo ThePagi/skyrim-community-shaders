@@ -10,26 +10,19 @@
 #include "Features/ScreenSpaceGI.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/Skylighting.h"
+#include "Features/SnowCover.h"
 #include "Features/SubsurfaceScattering.h"
 #include "Features/TerrainBlending.h"
 #include "Features/TerrainShadows.h"
-#include "Features/VolumetricLighting.h"
-#include "Features/WaterEffects.h"
+#include "Features/WaterLighting.h"
 #include "Features/WetnessEffects.h"
 
 #include "State.h"
 
 void Feature::Load(json& o_json)
 {
-	if (o_json[GetName()].is_structured()) {
-		logger::info("Loading {} settings", GetName());
-		try {
-			LoadSettings(o_json[GetName()]);
-		} catch (...) {
-			logger::warn("Invalid settings for {}, using default.", GetName());
-			RestoreDefaultSettings();
-		}
-	}
+	if (o_json[GetName()].is_structured())
+		LoadSettings(o_json[GetName()]);
 
 	// Convert string to wstring
 	auto ini_filename = std::format("{}.ini", GetShortName());
@@ -119,36 +112,26 @@ void Feature::WriteDiskCacheInfo(CSimpleIniA& a_ini)
 const std::vector<Feature*>& Feature::GetFeatureList()
 {
 	static std::vector<Feature*> features = {
-		globals::features::grassLighting,
-		globals::features::grassCollision,
-		globals::features::screenSpaceShadows,
-		globals::features::extendedMaterials,
-		globals::features::wetnessEffects,
-		globals::features::lightLimitFix,
-		globals::features::dynamicCubemaps,
-		globals::features::cloudShadows,
-		globals::features::waterEffects,
-		globals::features::subsurfaceScattering,
-		globals::features::terrainShadows,
-		globals::features::screenSpaceGI,
-		globals::features::skylighting,
-		globals::features::terrainBlending,
-		globals::features::volumetricLighting
+		GrassLighting::GetSingleton(),
+		GrassCollision::GetSingleton(),
+		ScreenSpaceShadows::GetSingleton(),
+		ExtendedMaterials::GetSingleton(),
+		WetnessEffects::GetSingleton(),
+		LightLimitFix::GetSingleton(),
+		DynamicCubemaps::GetSingleton(),
+		CloudShadows::GetSingleton(),
+		WaterLighting::GetSingleton(),
+		SubsurfaceScattering::GetSingleton(),
+		TerrainShadows::GetSingleton(),
+		ScreenSpaceGI::GetSingleton(),
+		Skylighting::GetSingleton(),
+		TerrainBlending::GetSingleton(),
+		SnowCover::GetSingleton()
 	};
 
 	static std::vector<Feature*> featuresVR(features);
 	std::erase_if(featuresVR, [](Feature* a) {
 		return !a->SupportsVR();
 	});
-	return (REL::Module::IsVR() && !globals::state->IsDeveloperMode()) ? featuresVR : features;
-}
-
-bool Feature::ToggleAtBootSetting()
-{
-	auto state = globals::state;
-	const std::string featureName = GetShortName();
-	auto disabled = state->IsFeatureDisabled(featureName);
-	state->SetFeatureDisabled(featureName, !disabled);
-
-	return state->IsFeatureDisabled(featureName);  // Return the new state
+	return (REL::Module::IsVR() && !State::GetSingleton()->IsDeveloperMode()) ? featuresVR : features;
 }

@@ -1,5 +1,7 @@
 #include "FrameAnnotations.h"
 
+#include <detours/Detours.h>
+
 #include "State.h"
 
 #pragma comment(lib, "dxguid.lib")
@@ -11,10 +13,10 @@ namespace FrameAnnotations
 	{
 		static void thunk(RE::BSShader* shader, RE::BSRenderPass* pass, uint32_t renderFlags)
 		{
-			if (globals::state->frameAnnotations) {
+			if (State::GetSingleton()->extendedFrameAnnotations) {
 				const std::string passName = std::format("[{}:{:X}] <{}> {}", magic_enum::enum_name(ShaderType), pass->passEnum,
 					pass->accumulationHint, pass->geometry->name.c_str());
-				globals::state->BeginPerfEvent(passName);
+				State::GetSingleton()->BeginPerfEvent(passName);
 			}
 
 			func(shader, pass, renderFlags);
@@ -30,8 +32,8 @@ namespace FrameAnnotations
 		{
 			func(shader, pass, renderFlags);
 
-			if (globals::state->frameAnnotations) {
-				globals::state->EndPerfEvent();
+			if (State::GetSingleton()->extendedFrameAnnotations) {
+				State::GetSingleton()->EndPerfEvent();
 			}
 		}
 
@@ -43,11 +45,11 @@ namespace FrameAnnotations
 	{
 		static void thunk(void* imageSpaceShader, RE::BSTriShape* shape, RE::ImageSpaceEffectParam* param)
 		{
-			globals::state->BeginPerfEvent(std::format("{} Draw", magic_enum::enum_name(EffectType)));
+			State::GetSingleton()->BeginPerfEvent(std::format("{} Draw", magic_enum::enum_name(EffectType)));
 
 			func(imageSpaceShader, shape, param);
 
-			globals::state->EndPerfEvent();
+			State::GetSingleton()->EndPerfEvent();
 		}
 
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -58,11 +60,11 @@ namespace FrameAnnotations
 	{
 		static void thunk(void* imageSpaceShader, uint32_t a1, uint32_t a2, uint32_t a3)
 		{
-			globals::state->BeginPerfEvent(std::format("{} Dispatch", magic_enum::enum_name(EffectType)));
+			State::GetSingleton()->BeginPerfEvent(std::format("{} Dispatch", magic_enum::enum_name(EffectType)));
 
 			func(imageSpaceShader, a1, a2, a3);
 
-			globals::state->EndPerfEvent();
+			State::GetSingleton()->EndPerfEvent();
 		}
 
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -72,16 +74,16 @@ namespace FrameAnnotations
 	{
 		static void thunk(RE::BSGraphics::BSShaderAccumulator* shaderAccumulator, uint32_t renderFlags)
 		{
-			const bool frameAnnotations = globals::state->frameAnnotations;
-			if (frameAnnotations) {
-				globals::state->BeginPerfEvent(std::format("BSShaderAccumulator::FinishAccumulatingDispatch [{}] <{}>",
+			const bool extendedFrameAnnotations = State::GetSingleton()->extendedFrameAnnotations;
+			if (extendedFrameAnnotations) {
+				State::GetSingleton()->BeginPerfEvent(std::format("BSShaderAccumulator::FinishAccumulatingDispatch [{}] <{}>",
 					static_cast<uint32_t>(shaderAccumulator->GetRuntimeData().renderMode), renderFlags));
 			}
 
 			func(shaderAccumulator, renderFlags);
 
-			if (frameAnnotations) {
-				globals::state->EndPerfEvent();
+			if (extendedFrameAnnotations) {
+				State::GetSingleton()->EndPerfEvent();
 			}
 		}
 
@@ -92,11 +94,11 @@ namespace FrameAnnotations
 	{
 		static void thunk(RE::NiAVObject* camera, int a2, bool a3, bool a4, bool a5)
 		{
-			globals::state->BeginPerfEvent(std::format("Cubemap {}", camera->name.c_str()));
+			State::GetSingleton()->BeginPerfEvent(std::format("Cubemap {}", camera->name.c_str()));
 
 			func(camera, a2, a3, a4, a5);
 
-			globals::state->EndPerfEvent();
+			State::GetSingleton()->EndPerfEvent();
 		}
 
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -106,11 +108,11 @@ namespace FrameAnnotations
 	{
 		static void thunk(RE::BSShadowLight* light, void* a2)
 		{
-			globals::state->BeginPerfEvent("Directional Light Shadowmaps");
+			State::GetSingleton()->BeginPerfEvent("Directional Light Shadowmaps");
 
 			func(light, a2);
 
-			globals::state->EndPerfEvent();
+			State::GetSingleton()->EndPerfEvent();
 		}
 
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -120,11 +122,11 @@ namespace FrameAnnotations
 	{
 		static void thunk(RE::BSShadowLight* light, void* a2)
 		{
-			globals::state->BeginPerfEvent("Spot Light Shadowmaps");
+			State::GetSingleton()->BeginPerfEvent("Spot Light Shadowmaps");
 
 			func(light, a2);
 
-			globals::state->EndPerfEvent();
+			State::GetSingleton()->EndPerfEvent();
 		}
 
 		static inline REL::Relocation<decltype(thunk)> func;
@@ -134,185 +136,163 @@ namespace FrameAnnotations
 	{
 		static void thunk(RE::BSShadowLight* light, void* a2)
 		{
-			globals::state->BeginPerfEvent("Omnidirectional Light Shadowmaps");
+			State::GetSingleton()->BeginPerfEvent("Omnidirectional Light Shadowmaps");
 
 			func(light, a2);
 
-			globals::state->EndPerfEvent();
+			State::GetSingleton()->EndPerfEvent();
 		}
 
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
-	struct BSBatchRenderer_RenderBatches
+	bool hk_BSBatchRenderer_RenderBatches(void* renderer, uint32_t* currentPass, uint32_t* bucketIndex,
+		void* passIndexList,
+		uint32_t renderFlags);
+	decltype(&hk_BSBatchRenderer_RenderBatches) ptr_BSBatchRenderer_RenderBatches;
+	bool hk_BSBatchRenderer_RenderBatches(void* renderer, uint32_t* currentPass, uint32_t* bucketIndex,
+		void* passIndexList,
+		uint32_t renderFlags)
 	{
-		static bool thunk(void* renderer, uint32_t* currentPass, uint32_t* bucketIndex,
-			void* passIndexList,
-			uint32_t renderFlags)
-		{
-			const bool frameAnnotations = globals::state->frameAnnotations;
-			if (frameAnnotations) {
-				globals::state->BeginPerfEvent(std::format("BSBatchRenderer::RenderBatches ({:X})[{}] <{}>", *currentPass, *bucketIndex,
-					renderFlags));
-			}
+		const bool extendedFrameAnnotations = State::GetSingleton()->extendedFrameAnnotations;
+		if (extendedFrameAnnotations) {
+			State::GetSingleton()->BeginPerfEvent(std::format("BSBatchRenderer::RenderBatches ({:X})[{}] <{}>", *currentPass, *bucketIndex,
+				renderFlags));
+		}
 
-			const bool result = func(renderer, currentPass, bucketIndex, passIndexList, renderFlags);
+		const bool result =
+			ptr_BSBatchRenderer_RenderBatches(renderer, currentPass, bucketIndex, passIndexList, renderFlags);
 
-			if (frameAnnotations) {
-				globals::state->EndPerfEvent();
-			}
+		if (extendedFrameAnnotations) {
+			State::GetSingleton()->EndPerfEvent();
+		}
 
-			return result;
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		return result;
 	};
 
-	struct Main_RenderDepth
+	void hk_Main_RenderDepth(bool a1, bool a2);
+	decltype(&hk_Main_RenderDepth) ptr_Main_RenderDepth;
+	void hk_Main_RenderDepth(bool a1, bool a2)
 	{
-		static void thunk(bool a1, bool a2)
-		{
-			globals::state->BeginPerfEvent("Depth");
+		State::GetSingleton()->BeginPerfEvent("Depth");
 
-			func(a1, a2);
+		ptr_Main_RenderDepth(a1, a2);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct Main_RenderShadowmasks
+	void hk_Main_RenderShadowmasks(bool a1);
+	decltype(&hk_Main_RenderShadowmasks) ptr_Main_RenderShadowmasks;
+	void hk_Main_RenderShadowmasks(bool a1)
 	{
-		static void thunk(bool a1)
-		{
-			globals::state->BeginPerfEvent("Shadowmasks");
+		State::GetSingleton()->BeginPerfEvent("Shadowmasks");
 
-			func(a1);
+		ptr_Main_RenderShadowmasks(a1);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct Main_RenderWorld
+	void hk_Main_RenderWorld(bool a1);
+	decltype(&hk_Main_RenderWorld) ptr_Main_RenderWorld;
+	void hk_Main_RenderWorld(bool a1)
 	{
-		static void thunk(bool a1)
-		{
-			globals::state->BeginPerfEvent("World");
+		State::GetSingleton()->BeginPerfEvent("World");
 
-			func(a1);
+		ptr_Main_RenderWorld(a1);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct Main_RenderFirstPersonView
+	void hk_Main_RenderFirstPersonView(bool a1, bool a2);
+	decltype(&hk_Main_RenderFirstPersonView) ptr_Main_RenderFirstPersonView;
+	void hk_Main_RenderFirstPersonView(bool a1, bool a2)
 	{
-		static void thunk(bool a1, bool a2)
-		{
-			globals::state->BeginPerfEvent("First Person View");
+		State::GetSingleton()->BeginPerfEvent("First Person View");
 
-			func(a1, a2);
+		ptr_Main_RenderFirstPersonView(a1, a2);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct Main_RenderWaterEffects
+	void hk_Main_RenderWaterEffects();
+	decltype(&hk_Main_RenderWaterEffects) ptr_Main_RenderWaterEffects;
+	void hk_Main_RenderWaterEffects()
 	{
-		static void thunk()
-		{
-			globals::state->BeginPerfEvent("Water Effects");
+		State::GetSingleton()->BeginPerfEvent("Water Effects");
 
-			func();
+		ptr_Main_RenderWaterEffects();
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct Main_RenderPlayerView
+	void hk_Main_RenderPlayerView(void* a1, bool a2, bool a3);
+	decltype(&hk_Main_RenderPlayerView) ptr_Main_RenderPlayerView;
+	void hk_Main_RenderPlayerView(void* a1, bool a2, bool a3)
 	{
-		static void thunk(void* a1, bool a2, bool a3)
-		{
-			globals::state->BeginPerfEvent("Player View");
+		State::GetSingleton()->BeginPerfEvent("Player View");
 
-			func(a1, a2, a3);
+		ptr_Main_RenderPlayerView(a1, a2, a3);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct BSShaderAccumulator_RenderEffects
+	void hk_BSShaderAccumulator_RenderEffects(void* accumulator, uint32_t renderFlags);
+	decltype(&hk_BSShaderAccumulator_RenderEffects) ptr_BSShaderAccumulator_RenderEffects;
+	void hk_BSShaderAccumulator_RenderEffects(void* accumulator, uint32_t renderFlags)
 	{
-		static void thunk(void* accumulator, uint32_t renderFlags)
-		{
-			globals::state->BeginPerfEvent("Effects");
+		State::GetSingleton()->BeginPerfEvent("Effects");
 
-			func(accumulator, renderFlags);
+		ptr_BSShaderAccumulator_RenderEffects(accumulator, renderFlags);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
-	struct BSShaderAccumulator_RenderBatches
+	void hk_BSShaderAccumulator_RenderBatches(void* shaderAccumulator, uint32_t firstPass, uint32_t lastPass, uint32_t renderFlags, int groupIndex);
+	decltype(&hk_BSShaderAccumulator_RenderBatches) ptr_BSShaderAccumulator_RenderBatches;
+	void hk_BSShaderAccumulator_RenderBatches(void* shaderAccumulator, uint32_t firstPass, uint32_t lastPass, uint32_t renderFlags, int groupIndex)
 	{
-		static void thunk(void* shaderAccumulator, uint32_t firstPass, uint32_t lastPass, uint32_t renderFlags, int groupIndex)
-		{
-			const bool frameAnnotations = globals::state->frameAnnotations;
-			if (frameAnnotations) {
-				globals::state->BeginPerfEvent(std::format("BSShaderAccumulator::RenderBatches ({:X}:{:X})[{}] <{}>", firstPass, lastPass, groupIndex,
-					renderFlags));
-			}
+		const bool extendedFrameAnnotations = State::GetSingleton()->extendedFrameAnnotations;
+		if (extendedFrameAnnotations) {
+			State::GetSingleton()->BeginPerfEvent(std::format("BSShaderAccumulator::RenderBatches ({:X}:{:X})[{}] <{}>", firstPass, lastPass, groupIndex,
+				renderFlags));
+		}
 
-			func(shaderAccumulator, firstPass, lastPass, renderFlags, groupIndex);
+		ptr_BSShaderAccumulator_RenderBatches(shaderAccumulator, firstPass, lastPass, renderFlags, groupIndex);
 
-			if (frameAnnotations) {
-				globals::state->EndPerfEvent();
-			}
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		if (extendedFrameAnnotations) {
+			State::GetSingleton()->EndPerfEvent();
+		}
 	};
 
-	struct BSShaderAccumulator_RenderPersistentPassList
+	void hk_BSShaderAccumulator_RenderPersistentPassList(void* passList, uint32_t renderFlags);
+	decltype(&hk_BSShaderAccumulator_RenderPersistentPassList) ptr_BSShaderAccumulator_RenderPersistentPassList;
+	void hk_BSShaderAccumulator_RenderPersistentPassList(void* passList, uint32_t renderFlags)
 	{
-		static void thunk(void* passList, uint32_t renderFlags)
-		{
-			const bool frameAnnotations = globals::state->frameAnnotations;
-			if (frameAnnotations) {
-				globals::state->BeginPerfEvent(std::format("BSShaderAccumulator::RenderPersistentPassList <{}>", renderFlags));
-			}
+		const bool extendedFrameAnnotations = State::GetSingleton()->extendedFrameAnnotations;
+		if (extendedFrameAnnotations) {
+			State::GetSingleton()->BeginPerfEvent(std::format("BSShaderAccumulator::RenderPersistentPassList <{}>", renderFlags));
+		}
 
-			func(passList, renderFlags);
+		ptr_BSShaderAccumulator_RenderPersistentPassList(passList, renderFlags);
 
-			if (frameAnnotations) {
-				globals::state->EndPerfEvent();
-			}
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		if (extendedFrameAnnotations) {
+			State::GetSingleton()->EndPerfEvent();
+		}
 	};
 
-	struct VolumetricLightingDescriptor_Render
+	void hk_VolumetricLightingDescriptor_Render(void* a1, void* a2, bool a3);
+	decltype(&hk_VolumetricLightingDescriptor_Render) ptr_VolumetricLightingDescriptor_Render;
+	void hk_VolumetricLightingDescriptor_Render(void* a1, void* a2, bool a3)
 	{
-		static void thunk(void* a1, void* a2, bool a3)
-		{
-			globals::state->BeginPerfEvent("Volumetric Lighting");
+		State::GetSingleton()->BeginPerfEvent("Volumetric Lighting");
 
-			func(a1, a2, a3);
+		ptr_VolumetricLightingDescriptor_Render(a1, a2, a3);
 
-			globals::state->EndPerfEvent();
-		};
-		static inline REL::Relocation<decltype(thunk)> func;
+		State::GetSingleton()->EndPerfEvent();
 	};
 
 	void OnPostPostLoad()
 	{
-		if (!globals::state->frameAnnotations)
-			return;
-
 		stl::write_vfunc<0x6, BSShader_SetupGeometry<RE::BSShader::Type::Lighting>>(
 			RE::VTABLE_BSLightingShader[0]);
 		stl::write_vfunc<0x6, BSShader_SetupGeometry<RE::BSShader::Type::Effect>>(
@@ -909,25 +889,22 @@ namespace FrameAnnotations
 		stl::write_vfunc<0xA, BSShadowParabolicLight_RenderShadowmaps>(
 			RE::VTABLE_BSShadowParabolicLight[0]);
 
-		stl::detour_thunk<BSBatchRenderer_RenderBatches>(REL::RelocationID(100852, 107642));
-		stl::detour_thunk<Main_RenderDepth>(REL::RelocationID(100421, 107139));
-		stl::detour_thunk<Main_RenderShadowmasks>(REL::RelocationID(100422, 107140));
-		stl::detour_thunk<Main_RenderWorld>(REL::RelocationID(100424, 107142));
-		stl::detour_thunk<Main_RenderFirstPersonView>(REL::RelocationID(100411, 107129));
-		stl::detour_thunk<Main_RenderPlayerView>(REL::RelocationID(35560, 36559));
-		stl::detour_thunk<Main_RenderWaterEffects>(REL::RelocationID(35561, 36560));
-		stl::detour_thunk<BSShaderAccumulator_RenderBatches>(REL::RelocationID(99963, 106609));
-		stl::detour_thunk<BSShaderAccumulator_RenderPersistentPassList>(REL::RelocationID(100840, 107630));
-		stl::detour_thunk<BSShaderAccumulator_RenderEffects>(REL::RelocationID(99940, 106585));
-		stl::detour_thunk<VolumetricLightingDescriptor_Render>(REL::RelocationID(100306, 107023));
+		*(uintptr_t*)&ptr_BSBatchRenderer_RenderBatches = Detours::X64::DetourFunction(REL::RelocationID(100852, 107642).address(), (uintptr_t)&hk_BSBatchRenderer_RenderBatches);
+		*(uintptr_t*)&ptr_Main_RenderDepth = Detours::X64::DetourFunction(REL::RelocationID(100421, 107139).address(), (uintptr_t)&hk_Main_RenderDepth);
+		*(uintptr_t*)&ptr_Main_RenderShadowmasks = Detours::X64::DetourFunction(REL::RelocationID(100422, 107140).address(), (uintptr_t)&hk_Main_RenderShadowmasks);
+		*(uintptr_t*)&ptr_Main_RenderWorld = Detours::X64::DetourFunction(REL::RelocationID(100424, 107142).address(), (uintptr_t)&hk_Main_RenderWorld);
+		*(uintptr_t*)&ptr_Main_RenderFirstPersonView = Detours::X64::DetourFunction(REL::RelocationID(100411, 107129).address(), (uintptr_t)&hk_Main_RenderFirstPersonView);
+		*(uintptr_t*)&ptr_Main_RenderPlayerView = Detours::X64::DetourFunction(REL::RelocationID(35560, 36559).address(), (uintptr_t)&hk_Main_RenderPlayerView);
+		*(uintptr_t*)&ptr_Main_RenderWaterEffects = Detours::X64::DetourFunction(REL::RelocationID(35561, 36560).address(), (uintptr_t)&hk_Main_RenderWaterEffects);
+		*(uintptr_t*)&ptr_BSShaderAccumulator_RenderBatches = Detours::X64::DetourFunction(REL::RelocationID(99963, 106609).address(), (uintptr_t)&hk_BSShaderAccumulator_RenderBatches);
+		*(uintptr_t*)&ptr_BSShaderAccumulator_RenderPersistentPassList = Detours::X64::DetourFunction(REL::RelocationID(100840, 107630).address(), (uintptr_t)&hk_BSShaderAccumulator_RenderPersistentPassList);
+		*(uintptr_t*)&ptr_BSShaderAccumulator_RenderEffects = Detours::X64::DetourFunction(REL::RelocationID(99940, 106585).address(), (uintptr_t)&hk_BSShaderAccumulator_RenderEffects);
+		*(uintptr_t*)&ptr_VolumetricLightingDescriptor_Render = Detours::X64::DetourFunction(REL::RelocationID(100306, 107023).address(), (uintptr_t)&hk_VolumetricLightingDescriptor_Render);
 	}
 
 	void OnDataLoaded()
 	{
-		if (!globals::state->frameAnnotations)
-			return;
-
-		auto renderer = globals::game::renderer;
+		auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 
 		for (size_t renderTargetIndex = 0;
 			 renderTargetIndex < (!REL::Module::IsVR() ? RE::RENDER_TARGETS::kTOTAL : RE::RENDER_TARGETS::kVRTOTAL); ++renderTargetIndex) {

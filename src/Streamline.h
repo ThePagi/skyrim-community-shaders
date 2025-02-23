@@ -1,12 +1,13 @@
 #pragma once
 
-#define NV_WINDOWS
+#include "Buffer.h"
+#include "State.h"
+
 #include <sl.h>
 #include <sl_consts.h>
 #include <sl_dlss.h>
 #include <sl_dlss_g.h>
 #include <sl_matrix_helpers.h>
-#include <sl_nis.h>
 #include <sl_reflex.h>
 
 class Streamline
@@ -18,28 +19,13 @@ public:
 		return &singleton;
 	}
 
-	inline std::string GetShortName() { return "Streamline"; }
-
-	bool enabledAtBoot = false;
 	bool initialized = false;
+	bool streamlineActive = false;
 
-	bool featureDLSS = false;
-	bool featureDLSSG = false;
-	bool featureReflex = false;
-	bool featureNIS = false;
+	sl::ViewportHandle viewport;
+	sl::FrameToken* currentFrame;
 
-	double refreshRate = 60.0;
-
-	sl::ViewportHandle viewport{ 0 };
-	sl::FrameToken* frameToken;
-
-	struct Settings
-	{
-		sl::DLSSGMode frameGenerationMode = sl::DLSSGMode::eOn;
-		int frameLimitMode = 0;
-	};
-
-	Settings settings{};
+	sl::DLSSGMode frameGenerationMode = sl::DLSSGMode::eAuto;
 
 	HMODULE interposer = NULL;
 
@@ -62,11 +48,6 @@ public:
 	PFun_slGetNewFrameToken* slGetNewFrameToken{};
 	PFun_slSetD3DDevice* slSetD3DDevice{};
 
-	// DLSS specific functions
-	PFun_slDLSSGetOptimalSettings* slDLSSGetOptimalSettings{};
-	PFun_slDLSSGetState* slDLSSGetState{};
-	PFun_slDLSSSetOptions* slDLSSSetOptions{};
-
 	// DLSSG specific functions
 	PFun_slDLSSGGetState* slDLSSGGetState{};
 	PFun_slDLSSGSetOptions* slDLSSGSetOptions{};
@@ -77,10 +58,6 @@ public:
 	PFun_slReflexSleep* slReflexSleep{};
 	PFun_slReflexSetOptions* slReflexSetOptions{};
 
-	// NIS specific functions
-	PFun_slNISSetOptions* slNISSetOptions{};
-	PFun_slNISGetState* slNISGetState{};
-
 	Texture2D* colorBufferShared;
 	Texture2D* depthBufferShared;
 
@@ -88,9 +65,10 @@ public:
 
 	void DrawSettings();
 
-	void LoadInterposer();
-	void Initialize();
-	void PostDevice(DXGI_SWAP_CHAIN_DESC* a_swapChainDesc);
+	void Shutdown();
+
+	void Initialize_preDevice();
+	void Initialize_postDevice();
 
 	HRESULT CreateDXGIFactory(REFIID riid, void** ppFactory);
 
@@ -101,43 +79,31 @@ public:
 		const D3D_FEATURE_LEVEL* pFeatureLevels,
 		UINT FeatureLevels,
 		UINT SDKVersion,
-		DXGI_SWAP_CHAIN_DESC* pSwapChainDesc,
+		const DXGI_SWAP_CHAIN_DESC* pSwapChainDesc,
 		IDXGISwapChain** ppSwapChain,
 		ID3D11Device** ppDevice,
 		D3D_FEATURE_LEVEL* pFeatureLevel,
-		ID3D11DeviceContext** ppImmediateContext);
+		ID3D11DeviceContext** ppImmediateContext,
+		bool& o_streamlineProxy);
 
-	void SetupResources();
+	void CreateFrameGenerationResources();
+
+	void SetupFrameGeneration();
 
 	void CopyResourcesToSharedBuffers();
+
 	void Present();
 
-	void Upscale(Texture2D* a_color, Texture2D* a_alphaMask, sl::DLSSPreset a_preset, float a_sharpness);
-	void Sharpen(Texture2D* a_sharpenTexture, float a_sharpness);
-	void UpdateConstants();
-
-	void SaveSettings(json& o_json);
-	void LoadSettings(json& o_json);
-
-	void RestoreDefaultSettings();
-
-	void DestroyDLSSResources();
-
-	void BeginFrame();
-
-	struct Main_Update_Start
-	{
-		static void thunk(INT64 a_unk)
-		{
-			GetSingleton()->BeginFrame();
-			func(a_unk);
-		}
-		static inline REL::Relocation<decltype(thunk)> func;
-	};
+	void SetConstants();
 
 	struct Main_RenderWorld
 	{
-		static void thunk(bool a1);
+		static void thunk(bool a1)
+		{
+			GetSingleton()->SetConstants();
+			func(a1);
+		}
+
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
@@ -153,7 +119,6 @@ public:
 
 	static void InstallHooks()
 	{
-		stl::write_thunk_call<Main_Update_Start>(REL::RelocationID(35565, 36564).address() + REL::Relocate(0x1E, 0x3E, 0x33));
 		stl::write_thunk_call<Main_RenderWorld>(REL::RelocationID(35560, 36559).address() + REL::Relocate(0x831, 0x841, 0x791));
 		stl::write_thunk_call<MenuManagerDrawInterfaceStartHook>(REL::RelocationID(79947, 82084).address() + REL::Relocate(0x7E, 0x83, 0x97));
 	}

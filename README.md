@@ -17,7 +17,6 @@ SKSE core plugin for community-driven advanced graphics modifications.
 - [Vcpkg](https://github.com/microsoft/vcpkg)
   - Install vcpkg using the directions in vcpkg's [Quick Start Guide](https://github.com/microsoft/vcpkg#quick-start-windows)
   - After install, add a new environment variable named `VCPKG_ROOT` with the value as the path to the folder containing vcpkg
-  - Make sure your local vcpkg repo matches the commit id specified in `builtin-baseline` in `vcpkg.json` otherwise you might get another version of a non pinned vcpkg dependency causing undefined behaviour
 
 ## User Requirements
 
@@ -59,8 +58,7 @@ If you want an example CMakeUserPreset to start off with you can copy the `CMake
 #### ZIP_TO_DIST
 * This option is default `"ON"`
 * Make sure `"ZIP_TO_DIST"` is set to `"ON"` in `CMakeUserPresets.json`
-* This will create a zip for each feature and one for the base Community shaders in /dist
-* If having a file with name `CORE` in the root of the features folder it will instead be merged into the core zip
+* This will create a zip for each feature and one for the base Community shaders in /dist containing
 #### TRACY_SUPPORT
 * This option is default `"OFF"`
 * This will enable tracy support, might need to delete build folder when this option is changed
@@ -85,12 +83,6 @@ docker run -it --rm -v .:C:/skyrim-community-shaders skyrim-community-shaders:la
 ```
 4. Retrieve the generated build files from the `build/aio` folder.
 5. In subsequent builds only run the build step (3.)
-
-#### Troubleshooting Build with Docker
-If you run into `Access violation` build errors during step 3, you can try adding [`--isolation=process`](https://learn.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/hyperv-container):
-```pwsh
-docker run -it --rm --isolation=process -v .:C:/skyrim-community-shaders skyrim-community-shaders:latest
-```
 
 ## License
 

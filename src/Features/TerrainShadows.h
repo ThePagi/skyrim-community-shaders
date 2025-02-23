@@ -1,6 +1,7 @@
 #pragma once
 
-#include <filesystem>
+#include "Buffer.h"
+#include "Feature.h"
 
 struct TerrainShadows : public Feature
 {
@@ -17,7 +18,7 @@ struct TerrainShadows : public Feature
 
 	struct Settings
 	{
-		bool EnableTerrainShadow = true;
+		uint EnableTerrainShadow = true;
 	} settings;
 
 	bool needPrecompute = false;
@@ -65,17 +66,14 @@ struct TerrainShadows : public Feature
 	bool IsHeightMapReady();
 
 	virtual void SetupResources() override;
-	void ParseHeightmapPath(std::filesystem::path p, bool xlodgen_style);
 	void CompileComputeShaders();
 
 	virtual void DrawSettings() override;
 
-	virtual void EarlyPrepass() override;
+	virtual void Prepass() override;
 	void LoadHeightmap();
 	void Precompute();
 	void UpdateShadow();
-
-	virtual void ReflectionsPrepass() override;
 
 	virtual void LoadSettings(json& o_json) override;
 	virtual void SaveSettings(json& o_json) override;

@@ -1,3 +1,5 @@
+#include "Common/Color.hlsli"
+#include "Common/Constants.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
 #include "Common/MotionBlur.hlsli"
@@ -60,7 +62,7 @@ cbuffer PerGeometry : register(b2)
 VS_OUTPUT main(VS_INPUT input)
 {
 	VS_OUTPUT vsout;
-	uint eyeIndex = Stereo::GetEyeIndexVS(
+	uint eyeIndex = GetEyeIndexVS(
 #	if defined(VR)
 		input.InstanceID
 #	endif  // VR
@@ -88,7 +90,7 @@ VS_OUTPUT main(VS_INPUT input)
 
 #	ifdef VR
 	vsout.EyeIndex = eyeIndex;
-	Stereo::VR_OUTPUT VRout = Stereo::GetVRVSOutput(vsout.Position, eyeIndex);
+	VR_OUTPUT VRout = GetVRVSOutput(vsout.Position, eyeIndex);
 	vsout.Position = VRout.VRPosition;
 	vsout.ClipDistance.x = VRout.ClipDistance;
 	vsout.CullDistance.x = VRout.CullDistance;
@@ -170,9 +172,14 @@ const static float DepthOffsets[16] = {
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
-#	define LinearSampler SampDiffuse
-
-#	include "Common/ShadowSampling.hlsli"
+#	if defined(SNOW_COVER)
+#		undef SNOW
+#		undef PROJECTED_UV
+#		undef SPARKLE
+#		define BASIC_SNOW_COVER
+#		define SampColorSampler SampDiffuse
+#		include "SnowCover/SnowCover.hlsli"
+#	endif
 
 PS_OUTPUT main(PS_INPUT input)
 {
@@ -209,55 +216,59 @@ PS_OUTPUT main(PS_INPUT input)
 	if ((baseColor.w - AlphaTestRefRS) < 0) {
 		discard;
 	}
+	float3 ddx = ddx_coarse(input.WorldPosition);
+	float3 ddy = ddy_coarse(input.WorldPosition);
+	float3 normal = normalize(normalize(cross(ddx, ddy)) + float3(0, 0, 1));
+
+#		if defined(SNOW_COVER)
+	if (snowCoverSettings.EnableSnowCover)
+		SnowCover::ApplySnowFoliage(baseColor.xyz, normal, input.WorldPosition.xyz + CameraPosAdjust[eyeIndex].xyz, 1);
+#		endif
 
 #		if defined(DEFERRED)
-	float3 viewPosition = mul(FrameBuffer::CameraView[eyeIndex], float4(input.WorldPosition.xyz, 1)).xyz;
-	float2 screenUV = FrameBuffer::ViewToUV(viewPosition, true, eyeIndex);
-	float screenNoise = Random::InterleavedGradientNoise(input.Position.xy, SharedData::FrameCount);
+	float3 viewPosition = mul(CameraView[eyeIndex], float4(input.WorldPosition.xyz, 1)).xyz;
+	float2 screenUV = ViewToUV(viewPosition, true, eyeIndex);
+	float screenNoise = InterleavedGradientNoise(input.Position.xy, FrameCount);
 
 	float dirShadow = 1;
 
 #			if defined(SCREEN_SPACE_SHADOWS)
-	dirShadow = lerp(1.0, ScreenSpaceShadows::GetScreenSpaceShadow(input.Position.xyz, screenUV, screenNoise, eyeIndex), 0.8);
+	dirShadow = ScreenSpaceShadows::GetScreenSpaceShadow(input.Position, screenUV, screenNoise, viewPosition, eyeIndex);
 #			endif
 
-	if (dirShadow != 0.0)
-		dirShadow *= ShadowSampling::GetWorldShadow(input.WorldPosition, FrameBuffer::CameraPosAdjust[eyeIndex], eyeIndex);
+#			if defined(TERRAIN_SHADOWS)
+	if (dirShadow > 0.0) {
+		float terrainShadow = TerrainShadows::GetTerrainShadow(input.WorldPosition.xyz + CameraPosAdjust[eyeIndex], length(input.WorldPosition.xyz), SampDiffuse);
+		dirShadow = min(dirShadow, terrainShadow);
+	}
+#			endif
 
-	float3 diffuseColor = SharedData::DirLightColor.xyz * dirShadow * 0.5;
+#			if defined(CLOUD_SHADOWS)
+	if (dirShadow > 0.0) {
+		dirShadow *= CloudShadows::GetCloudShadowMult(input.WorldPosition, SampDiffuse);
+	}
+#			endif
 
-	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
-	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
-	float3 normal = normalize(cross(ddx, ddy));
+	float3 diffuseColor = DirLightColorShared.xyz * dirShadow;
 
 #			if !defined(SSGI)
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
+	float3 directionalAmbientColor = mul(DirectionalAmbientShared, float4(normal, 1.0));
 	diffuseColor += directionalAmbientColor;
 #			endif
 
-	psout.Diffuse.xyz = diffuseColor * baseColor.xyz;
+	psout.Diffuse.xyz = diffuseColor * baseColor.xyz * 0.5;
 	psout.Diffuse.w = 1;
 
-	psout.MotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
+	psout.MotionVector = GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
 
-	psout.Normal.xy = GBuffer::EncodeNormal(FrameBuffer::WorldToView(normal, false, eyeIndex));
+	psout.Normal.xy = EncodeNormal(WorldToView(normal, false, eyeIndex));
 	psout.Normal.zw = 0;
 
 	psout.Albedo = float4(baseColor.xyz, 1);
 	psout.Masks = float4(0, 0, 1, 0);
 #		else
-	float dirShadow = ShadowSampling::GetWorldShadow(input.WorldPosition, FrameBuffer::CameraPosAdjust[eyeIndex], eyeIndex);
 
-	float3 diffuseColor = SharedData::DirLightColor.xyz * dirShadow * 0.5;
-
-	float3 ddx = ddx_coarse(input.WorldPosition.xyz);
-	float3 ddy = ddy_coarse(input.WorldPosition.xyz);
-	float3 normal = normalize(cross(ddx, ddy));
-
-	float3 directionalAmbientColor = mul(SharedData::DirectionalAmbient, float4(normal, 1.0));
-	diffuseColor += directionalAmbientColor;
-
-	float3 color = diffuseColor * baseColor.xyz;
+	float3 color = baseColor.xyz * (DiffuseColor.xyz + AmbientColor.xyz);
 	psout.Diffuse = float4(color, 1.0);
 #		endif  // DEFERRED
 #	endif      // RENDER_DEPTH
