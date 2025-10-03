@@ -1176,6 +1176,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #		endif  // TRUE_PBR
 
 #	endif  // EMAT
+	
 
 #	if defined(SNOW)
 	bool useSnowSpecular = true;
@@ -1295,6 +1296,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 	mipLevels[0] = mipLevels[1] = mipLevels[2] = mipLevels[3] = mipLevels[4] = mipLevels[5] = 0.0;
 #		endif  // EMAT
 #	endif      // LANDSCAPE
+
+	{ // pixelart pixel art pixel-art
+		#if defined(DO_ALPHA_TEST)
+		uv = Math::pixel(TexColorSampler, uv);
+		uvOriginal = Math::pixel(TexColorSampler, uvOriginal);
+		#else
+		uv = Math::pixel_world(TexColorSampler, uv, input.WorldPosition.xyz);
+		uvOriginal = Math::pixel_world(TexColorSampler, uvOriginal, input.WorldPosition.xyz);
+		#endif
+	}
 
 #	if defined(SPARKLE)
 	diffuseUv = ProjectedUVParams2.yy * (input.TexCoord0.zw + (uv - uvOriginal));
