@@ -963,9 +963,21 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 {
 	PS_OUTPUT psout;
 	uint eyeIndex = Stereo::GetEyeIndexPS(input.Position, VPOSOffset);
+	float3 noise = ScreenSpaceDither(input.Position.xy);
+
 
 	float3 viewPosition = mul(FrameBuffer::CameraView[eyeIndex], float4(input.WorldPosition.xyz, 1)).xyz;
 	float3 viewDirection = -normalize(input.WorldPosition.xyz);
+
+	float3 color = (5/(5+viewPosition.z)) + noise;
+	float3 acc = 0;
+	for(int i = 0; i < 32; i++){
+		float4 det = SharedData::SoundDetails[i];
+		float soundTime = frac(SharedData::SoundSources[i].w);
+		float proximity = saturate((200 - length((input.WorldPosition.xyz+FrameBuffer::CameraPosAdjust[0]) - SharedData::SoundSources[i].xyz))/(200));
+		acc += sin(soundTime*3.141)*saturate(sin(proximity*soundTime*det.y*100))*proximity;
+	}
+	color += saturate(acc)*0.5;
 
 	float2 screenUV = FrameBuffer::ViewToUV(viewPosition, true, eyeIndex);
 	float screenNoise = Random::InterleavedGradientNoise(input.Position.xy, SharedData::FrameCount);
@@ -1008,9 +1020,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace : SV_IsFrontFace)
 #endif
 
 	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
-	float3 noise = ScreenSpaceDither(input.Position.xy);
 
-	psout.Diffuse.xyz = (5/(5+viewPosition.z)) + noise;
+	psout.Diffuse.xyz = saturate(color);
 	psout.Diffuse.w = 1;
 
 	psout.MotionVectors.xy = screenMotionVector.xy;

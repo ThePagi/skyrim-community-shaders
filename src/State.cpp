@@ -777,6 +777,32 @@ void State::UpdateSharedData([[maybe_unused]] bool a_inWorld, [[maybe_unused]] b
 {
 	{
 		SharedDataCB data{};
+		{
+			int i = 0;
+			for (const auto& pair : RE::BSAudioManager::GetSingleton()->activeSounds) {
+				if (i >= 32) {
+					i += 1;
+					continue;
+				}
+				if (pair.second->IsMusic() || !pair.second->IsPlaying())
+					continue;
+				RE::NiPoint3 pos = RE::NiPoint3::Zero();
+				pair.second->GetEmitterPositionImpl(pos);
+				data.SoundSources[i].x = pos.x;
+				data.SoundSources[i].y = pos.y;
+				data.SoundSources[i].z = pos.z;
+				data.SoundSources[i].w = static_cast<float>(pair.second->GetCurrentPlaybackPosition()) / pair.second->durationMilliseconds;
+				data.SoundDetails[i].x = static_cast<float>(pair.second->staticAttenuation);
+				data.SoundDetails[i].y = static_cast<float>(pair.second->frequency) / 255.0f;
+				data.SoundDetails[i].z = static_cast<float>(pair.second->freqVariance) / 255.0f;
+				data.SoundDetails[i].w = static_cast<float>(pair.second->durationMilliseconds);
+				i += 1;
+				
+			}
+			//logger::info("[Sounds] Sound sources: {}", i + 1);
+			//logger::info("[Sounds] First sound: ({}, {}, {}, {})", data.SoundSources[0].x, data.SoundSources[0].y, data.SoundSources[0].z, data.SoundSources[0].w);
+			//logger::info("[Sounds] First sound deets: ({}, {}, {}, {})", data.SoundDetails[0].x, data.SoundDetails[0].y, data.SoundDetails[0].z, data.SoundDetails[0].w);
+		}
 
 		const auto shaderManager = globals::game::smState;
 		const RE::NiTransform& dalcTransform = shaderManager->directionalAmbientTransform;

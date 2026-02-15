@@ -94,6 +94,7 @@ namespace globals
 		RE::BSGraphics::State* graphicsState = nullptr;
 		RE::BSGraphics::Renderer* renderer = nullptr;
 		RE::BSShaderManager::State* smState = nullptr;
+		RE::BSAudioManager* audioManager = nullptr;
 		RE::TES* tes = nullptr;
 		bool isVR = false;
 		RE::MemoryManager* memoryManager = nullptr;
@@ -158,6 +159,7 @@ namespace globals
 			graphicsState = RE::BSGraphics::State::GetSingleton();
 			renderer = RE::BSGraphics::Renderer::GetSingleton();
 			smState = &RE::BSShaderManager::State::GetSingleton();
+			audioManager = RE::BSAudioManager::GetSingleton();
 			isVR = REL::Module::IsVR();
 			iniSettingCollection = RE::INISettingCollection::GetSingleton();
 			iniPrefSettingCollection = RE::INIPrefSettingCollection::GetSingleton();

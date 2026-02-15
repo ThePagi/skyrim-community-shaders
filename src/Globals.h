@@ -206,6 +206,7 @@ namespace globals
 		extern RE::BSGraphics::State* graphicsState;
 		extern RE::BSGraphics::Renderer* renderer;
 		extern RE::BSShaderManager::State* smState;
+		extern RE::BSAudioManager* audioManager;
 		extern RE::TES* tes;
 		extern bool isVR;
 		extern RE::MemoryManager* memoryManager;
