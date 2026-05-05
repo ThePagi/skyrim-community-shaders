@@ -424,7 +424,9 @@ struct ID3D11Device_CreateSamplerState
 	{
 		// Limit Anisotropy to 8x for performance
 		D3D11_SAMPLER_DESC descCopy = *pSamplerDesc;  // make a copy, pSamplerDesc is supposed to be immutable
-		descCopy.MaxAnisotropy = std::min(descCopy.MaxAnisotropy, 8u);
+		descCopy.MaxAnisotropy = std::min(descCopy.MaxAnisotropy, 4u);
+		if (descCopy.MaxAnisotropy > 1 && descCopy.AddressU == D3D11_TEXTURE_ADDRESS_WRAP)
+		descCopy.Filter = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR;
 		return func(This, &descCopy, ppSamplerState);
 	}
 	static inline REL::Relocation<decltype(thunk)> func;
